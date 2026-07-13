@@ -37,7 +37,7 @@ export default function Step3Cases() {
           🟠 맞춤형 재해 사례
         </h1>
         <p className="text-gray-600">
-          {businessData.industry} · {businessData.subIndustry}와 유사한 실제 사고 사례
+          {businessData.industryMajor} · {businessData.industryMid} · {businessData.region}와 유사한 실제 사고 사례
         </p>
       </div>
       

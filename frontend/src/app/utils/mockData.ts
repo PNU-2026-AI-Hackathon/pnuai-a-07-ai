@@ -48,17 +48,17 @@ export function calculateRisk(data: BusinessData): RiskData {
   let riskScore = 50;
   
   // Industry risk factors
-  if (data.industry === "제조업") {
-    if (data.subIndustry === "금속가공") riskScore += 20;
-    else if (data.subIndustry === "화학·플라스틱") riskScore += 25;
+  if (data.industryMajor === "제조업") {
+    if (data.industryMid === "금속가공") riskScore += 20;
+    else if (data.industryMid === "화학·플라스틱") riskScore += 25;
     else riskScore += 15;
-  } else if (data.industry === "건설업") {
+  } else if (data.industryMajor === "건설업") {
     riskScore += 30;
   }
   
   // Size factor (smaller = higher risk due to less safety resources)
-  if (data.employeeCount < 10) riskScore += 10;
-  else if (data.employeeCount > 50) riskScore -= 10;
+  if (data.workerCount < 10) riskScore += 10;
+  else if (data.workerCount > 50) riskScore -= 10;
   
   riskScore = Math.min(100, Math.max(0, riskScore));
   
@@ -69,14 +69,14 @@ export function calculateRisk(data: BusinessData): RiskData {
   
   // Generate top accidents based on industry
   let topAccidents = [];
-  if (data.industry === "제조업") {
+  if (data.industryMajor === "제조업") {
     topAccidents = [
       { type: "끼임·협착", percentage: 42 },
       { type: "추락·낙하", percentage: 28 },
       { type: "화상·감전", percentage: 18 },
       { type: "기타", percentage: 12 },
     ];
-  } else if (data.industry === "건설업") {
+  } else if (data.industryMajor === "건설업") {
     topAccidents = [
       { type: "추락", percentage: 48 },
       { type: "낙하·비래", percentage: 25 },
@@ -108,7 +108,7 @@ export function calculateRisk(data: BusinessData): RiskData {
 export function getAccidentCases(data: BusinessData): AccidentCase[] {
   const cases: AccidentCase[] = [];
   
-  if (data.industry === "제조업" && data.subIndustry === "금속가공") {
+  if (data.industryMajor === "제조업" && data.industryMid === "금속가공") {
     cases.push({
       id: "1",
       date: "2025.11.14",
@@ -128,7 +128,7 @@ export function getAccidentCases(data: BusinessData): AccidentCase[] {
       fullDescription: "연삭 작업 중 금속 파편이 눈으로 튀어들어 시력 손상을 입었습니다. 작업자는 불편하다는 이유로 보안경을 착용하지 않은 채 작업했으며, 관리감독자도 이를 제지하지 않았습니다.",
       aiAdvice: "소규모 사업장일수록 개인보호구 착용률이 낮습니다. 매일 아침 안전장구 착용 점검을 습관화하세요.",
     });
-  } else if (data.industry === "건설업") {
+  } else if (data.industryMajor === "건설업") {
     cases.push({
       id: "3",
       date: "2025.10.05",
@@ -185,7 +185,7 @@ export function getChecklist(data: BusinessData): ChecklistItem[] {
   
   const industrySpecific: ChecklistItem[] = [];
   
-  if (data.industry === "제조업") {
+  if (data.industryMajor === "제조업") {
     industrySpecific.push(
       {
         id: "5",
@@ -206,7 +206,7 @@ export function getChecklist(data: BusinessData): ChecklistItem[] {
         checked: false,
       }
     );
-  } else if (data.industry === "건설업") {
+  } else if (data.industryMajor === "건설업") {
     industrySpecific.push(
       {
         id: "5",

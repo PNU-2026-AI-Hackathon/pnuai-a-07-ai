@@ -43,7 +43,7 @@ export default function Step4Checklist() {
           🔴 법적 체크리스트
         </h1>
         <p className="text-gray-600">
-          {businessData.industry} · {businessData.subIndustry} 필수 안전 조치사항
+          {businessData.industryMajor} · {businessData.industryMid} · {businessData.region} 필수 안전 조치사항
         </p>
       </div>
       
