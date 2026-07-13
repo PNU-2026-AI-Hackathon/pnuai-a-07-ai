@@ -1,7 +1,8 @@
 export interface BusinessData {
-  industry: string;
-  subIndustry: string;
-  employeeCount: number;
+  industryMajor: string;
+  industryMid: string;
+  region: string;
+  workerCount: number;
 }
 
 export interface RiskData {
