@@ -26,8 +26,8 @@ import numpy as np
 import pandas as pd
 import lightgbm as lgb
 
-# kosha_encodings 경로 추가
-sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '학습전데이터'))
+# kosha_encodings는 ML모델/ 폴더에 함께 포함
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from kosha_encodings import (
     SIZE_ORDER, AGE_ORDER, WORK_PERIOD_ORDER, CONST_AMT_ORDER,
     SUBJOB_NORM, SUBJOB_MAP,
@@ -183,20 +183,35 @@ def predict(
     return result
 
 
-# ── 간단 테스트 ───────────────────────────────────────────────
+# ── CLI ──────────────────────────────────────────────────────
 if __name__ == '__main__':
-    import sys, io
+    import sys, io, argparse
     sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
 
+    parser = argparse.ArgumentParser(description='산재 사고 유형 Top-K 확률 예측')
+    parser.add_argument('--대업종',       required=True,  help='건설업 / 제조업 / 광업 / 기타의사업 / 운수·창고·통신업 / 농업 / 어업 / 임업 / 전기·가스·증기·수도사업 / 금융및보험업')
+    parser.add_argument('--종업종',       required=True,  help='KOSHA 종업종 문자열')
+    parser.add_argument('--성별',         required=True,  help='남 / 여')
+    parser.add_argument('--연령',         required=True,  help='예: 40세~44세')
+    parser.add_argument('--근무기간',     required=True,  help='예: 1~2년 미만')
+    parser.add_argument('--규모',         required=True,  help='예: 5~9인')
+    parser.add_argument('--지역',         required=True,  help='예: 경기')
+    parser.add_argument('--건설공사금액', default=None,   help='건설업일 때만. 예: 5억~10억 미만')
+    parser.add_argument('--년도',         type=int, default=2024)
+    parser.add_argument('--top_k',        type=int, default=3)
+    args = parser.parse_args()
+
     result = predict(
-        대업종   = '제조업',
-        종업종   = '기계기구·금속·비금속광물제품제조업',
-        성별     = '남',
-        연령     = '40세~44세',
-        근무기간 = '1~2년 미만',
-        규모     = '5~9인',
-        지역     = '경기',
-        top_k    = 3,
+        대업종       = args.대업종,
+        종업종       = args.종업종,
+        성별         = args.성별,
+        연령         = args.연령,
+        근무기간     = args.근무기간,
+        규모         = args.규모,
+        지역         = args.지역,
+        건설공사금액 = args.건설공사금액,
+        년도         = args.년도,
+        top_k        = args.top_k,
     )
 
     for key, val in result.items():
@@ -205,4 +220,4 @@ if __name__ == '__main__':
         else:
             print(f'{key}:')
             for label, prob in val:
-                print(f'  {label:<20} {prob:.4f}')
+                print(f'  {label:<22} {prob:.4f}')
