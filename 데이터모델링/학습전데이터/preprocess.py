@@ -23,6 +23,7 @@ sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
 from kosha_encodings import (
     SIZE_ORDER, AGE_ORDER, WORK_PERIOD_ORDER, CONST_AMT_ORDER,
     ACCIDENT_TYPE_MAP, DISEASE_MAP, DISEASE_DETAIL_MAP, INJURY_ORDER,
+    SUBJOB_NORM, SUBJOB_MAP,
 )
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -58,13 +59,13 @@ REGIONS      = ['강원','경기','경남','경북','광주','대구','대전','
 REGION_FEATS = [f'지역_{r}' for r in REGIONS]
 
 # 피처 컬럼 세트
-BASE      = ['통계기준년월', '규모_enc', '연령_enc', '근무기간_enc']
+BASE      = ['통계기준년월', '규모_enc', '연령_enc', '근무기간_enc', '종업종_enc']
 GENDER    = ['성별_남']
 FEAT_건설  = BASE + ['건설공사금액_enc'] + GENDER + REGION_FEATS   # 21개
 FEAT_대규모 = BASE                       + GENDER + REGION_FEATS   # 20개
 FEAT_소규모 = (['통계기준년월'] + INDUSTRY_ONEHOT_COLS             # 산업 원핫 4개
-              + ['규모_enc', '연령_enc', '근무기간_enc']
-              + GENDER + REGION_FEATS)                              # 24개
+              + ['규모_enc', '연령_enc', '근무기간_enc', '종업종_enc']
+              + GENDER + REGION_FEATS)                              # 25개
 
 
 # ── 로드 ─────────────────────────────────────────────────
@@ -82,6 +83,7 @@ df['규모_enc']         = df['규모'].map(SIZE_ORDER)
 df['연령_enc']         = df['연령'].map(AGE_ORDER)
 df['근무기간_enc']     = df['근무기간'].map(WORK_PERIOD_ORDER)
 df['건설공사금액_enc'] = df['건설공사금액'].map(CONST_AMT_ORDER)
+df['종업종_enc']      = df['종업종'].map(SUBJOB_NORM).map(SUBJOB_MAP)
 df['발생형태_enc']     = df['발생형태'].map(ACCIDENT_TYPE_MAP)
 df['재해정도_enc']     = df['재해정도'].map(INJURY_ORDER)
 df['질병종류_enc']     = df['질병종류'].map(DISEASE_MAP)
@@ -101,7 +103,7 @@ for 업종, onehot_col in SMALL_INDUSTRIES.items():
 
 
 # ── 공통 drop ────────────────────────────────────────────
-drop_mask = (df['연령_enc'] == -1) | (df['근무기간_enc'] == -1)
+drop_mask = (df['연령_enc'] == -1) | (df['근무기간_enc'] == -1) | df['종업종_enc'].isna()
 n_drop_common = drop_mask.sum()
 df = df[~drop_mask].reset_index(drop=True)
 print(f'  연령·근무기간 분류불능 drop: {n_drop_common:,}행 → 잔여 {len(df):,}행')

@@ -123,8 +123,9 @@ def page_cover(pdf, pnum):
         ['클래스 불균형 처리', 'is_unbalance = True'],
         ['Early stopping',  'patience 50 rounds'],
         ['Optuna 최적화 목표', 'Macro F1 (maximize)'],
+        ['신규 추가 피처',   '종업종_enc (82종→44통합, 명목형 categorical_feature)'],
     ]
-    draw_table(ax1, ['항목', '값'], rows, col_widths=[0.38, 0.62], row_height=0.095)
+    draw_table(ax1, ['항목', '값'], rows, col_widths=[0.38, 0.62], row_height=0.088)
 
     # 태스크 구성
     section_label(fig, 0.52, '태스크 구성')
@@ -288,15 +289,15 @@ def page_summary(pdf, pnum):
     section_label(fig, 0.365, '결과 해석')
     notes = [
         ('■ 성능이 낮은 이유', True),
-        ('  1) 피처–타겟 약한 상관: 성별·연령·지역·규모만으로 사고 유형 예측은 본질적으로 어려운 문제.', False),
+        ('  1) 피처–타겟 약한 상관: 성별·연령·지역·규모·종업종만으로 사고 유형 예측은 본질적으로 어려운 문제.', False),
         ('     사고 유형은 "어떤 작업을 하느냐·어떤 장비를 쓰느냐"에 의존 — 해당 피처 없음.', False),
         ('  2) 강한 클래스 불균형: 발생형태 23개 중 상위 4개가 70%+ 차지.', False),
         ('  3) 세부질병종류 클래스 최대 32개: 소규모 업종은 행수 대비 클래스 수 과다.', False),
-        ('  4) 광업 Acc 95.9% 이상현상: 테스트셋 1개 클래스 쏠림 — F1-macro 7.5%가 실제 성능.', False),
+        ('  4) 광업 Acc 96.0% 이상현상: 테스트셋 1개 클래스 쏠림 — F1-macro 9.2%가 실제 성능.', False),
         ('', False),
         ('■ 개선 방향', True),
         ('  - 피처 추가: 작업 공정, 장비, 세분류 업종 등 직접적 위험 요인 변수 발굴', False),
-        ('  - Top-K 예측: 정확한 1개 대신 상위 3~5개 후보 제시 방식으로 실용성 확보', False),
+        ('  - Top-K 예측: predict.py 구현 완료 — 상위 3~5개 후보+확률 반환으로 실용성 확보', False),
         ('  - 베이지안 추정기와 병용: ML은 업무상질병 세분류에 집중, 나머지는 베이즈 보조', False),
         ('  - Feature importance 분석: 업종별 기여 피처 확인 후 불필요 피처 정리', False),
     ]

@@ -85,6 +85,7 @@ def build_params(trial, n_classes: int) -> dict:
         'verbosity':         -1,
         'boosting_type':     'gbdt',
         'is_unbalance':      True,
+        'max_cat_threshold': 64,   # 종업종_enc 최대 44개 카테고리 (기본값 32 초과)
         'num_leaves':        trial.suggest_int('num_leaves', 20, 200),
         'max_depth':         trial.suggest_int('max_depth', 3, 10),
         'learning_rate':     trial.suggest_float('learning_rate', 0.01, 0.1, log=True),
@@ -106,8 +107,13 @@ def train_model(df, target_col, all_target_cols, industry, task_name):
         print(f'  [건너뜀] {task_name} / {industry}: train={len(tr)} test={len(te)}')
         return None
 
-    X_tr, y_tr = tr[feat_cols].values, tr[target_col].values.astype(int)
-    X_te, y_te = te[feat_cols].values, te[target_col].values.astype(int)
+    X_tr = tr[feat_cols]
+    y_tr = tr[target_col].values.astype(int)
+    X_te = te[feat_cols]
+    y_te = te[target_col].values.astype(int)
+
+    # 종업종_enc 는 명목형 카테고리 — LightGBM native categorical split 사용
+    cat_feats = [c for c in feat_cols if c == '종업종_enc']
 
     n_classes = int(df[target_col].max()) + 1
 
@@ -117,7 +123,7 @@ def train_model(df, target_col, all_target_cols, industry, task_name):
     # Dataset을 trial마다 새로 생성 — 재사용 시 min_child_samples 변경으로 캐시 충돌 발생
     def objective(trial):
         params = build_params(trial, n_classes)
-        dtrain_t = lgb.Dataset(X_tr, label=y_tr)
+        dtrain_t = lgb.Dataset(X_tr, label=y_tr, categorical_feature=cat_feats)
         dvalid_t = lgb.Dataset(X_te, label=y_te, reference=dtrain_t)
         m = lgb.train(params, dtrain_t, num_boost_round=1000,
                       valid_sets=[dvalid_t], callbacks=cb)
@@ -138,9 +144,10 @@ def train_model(df, target_col, all_target_cols, industry, task_name):
         'objective': 'multiclass', 'num_class': n_classes,
         'metric': 'multi_logloss', 'verbosity': -1,
         'boosting_type': 'gbdt', 'is_unbalance': True,
+        'max_cat_threshold': 64,
         **study.best_params,
     }
-    dtrain_f = lgb.Dataset(X_tr, label=y_tr)
+    dtrain_f = lgb.Dataset(X_tr, label=y_tr, categorical_feature=cat_feats)
     dvalid_f = lgb.Dataset(X_te, label=y_te, reference=dtrain_f)
     final = lgb.train(best, dtrain_f, num_boost_round=1000,
                       valid_sets=[dvalid_f], callbacks=cb)
