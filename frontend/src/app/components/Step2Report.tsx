@@ -40,7 +40,7 @@ export default function Step2Report() {
           🟡 AI 위험 리포트
         </h1>
         <p className="text-gray-600">
-          {businessData.industry} · {businessData.subIndustry} · 직원 {businessData.employeeCount}명
+          {businessData.industryMajor} · {businessData.industryMid} · {businessData.region} · 직원 {businessData.workerCount}명
         </p>
       </div>
       
@@ -123,7 +123,7 @@ export default function Step2Report() {
                     {riskData.topAccidents.slice(0, 3).map((acc, idx) => (
                       <li key={idx}>• {acc.type} 사고가 {acc.percentage}%로 높은 비중</li>
                     ))}
-                    {businessData.employeeCount < 10 && (
+                    {businessData.workerCount < 10 && (
                       <li>• 소규모 사업장으로 안전관리 체계 취약</li>
                     )}
                   </ul>

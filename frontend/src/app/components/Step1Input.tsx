@@ -7,28 +7,50 @@ import { Label } from "./ui/label";
 import { Slider } from "./ui/slider";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "./ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
-import { Factory, Users, ArrowRight, Shield } from "lucide-react";
+import { Factory, Users, ArrowRight, Shield, AlertCircle } from "lucide-react";
+import { toast } from "sonner";
+
+const regions = [
+  { value: "\uBD80\uC0B0", label: "\uBD80\uC0B0" },
+  { value: "\uACBD\uB0A8", label: "\uACBD\uB0A8" },
+  { value: "\uC6B8\uC0B0", label: "\uC6B8\uC0B0" },
+  { value: "\uB300\uAD6C", label: "\uB300\uAD6C" },
+  { value: "\uACBD\uBD81", label: "\uACBD\uBD81" },
+  { value: "\uC11C\uC6B8", label: "\uC11C\uC6B8" },
+  { value: "\uACBD\uAE30", label: "\uACBD\uAE30" },
+  { value: "\uC778\uCC9C", label: "\uC778\uCC9C" },
+  { value: "\uAE30\uD0C0", label: "\uAE30\uD0C0" },
+];
 
 export default function Step1Input() {
   const navigate = useNavigate();
   const { setBusinessData, setRiskData, setAccidentCases, setChecklist } = useSafety();
   
-  const [industry, setIndustry] = useState("");
-  const [subIndustry, setSubIndustry] = useState("");
-  const [employeeCount, setEmployeeCount] = useState([20]);
+  const [industryMajor, setIndustryMajor] = useState("");
+  const [industryMid, setIndustryMid] = useState("");
+  const [region, setRegion] = useState("\uBD80\uC0B0");
+  const [workerCount, setWorkerCount] = useState([20]);
+  const [validationError, setValidationError] = useState("");
   
-  const selectedIndustryData = industries.find(i => i.name === industry);
+  const selectedIndustryData = industries.find(i => i.name === industryMajor);
   
   const handleStart = () => {
-    if (!industry || !subIndustry) {
-      alert("업종을 선택해주세요!");
+    if (!industryMajor || !industryMid || !region) {
+      const message = "업종과 세부 업종을 모두 선택해주세요.";
+      setValidationError(message);
+      toast.warning("업종 선택이 필요해요", {
+        description: message,
+      });
       return;
     }
+
+    setValidationError("");
     
     const businessData = {
-      industry,
-      subIndustry,
-      employeeCount: employeeCount[0],
+      industryMajor,
+      industryMid,
+      region,
+      workerCount: workerCount[0],
     };
     
     setBusinessData(businessData);
@@ -73,11 +95,16 @@ export default function Step1Input() {
                 <Label htmlFor="industry-main" className="text-sm text-gray-600">
                   주업종
                 </Label>
-                <Select value={industry} onValueChange={(value) => {
-                  setIndustry(value);
-                  setSubIndustry("");
+                <Select value={industryMajor} onValueChange={(value) => {
+                  setIndustryMajor(value);
+                  setIndustryMid("");
+                  setValidationError("");
                 }}>
-                  <SelectTrigger id="industry-main" className="h-12">
+                  <SelectTrigger
+                    id="industry-main"
+                    className={`h-12 ${validationError && !industryMajor ? "border-red-500 ring-2 ring-red-100" : ""}`}
+                    aria-invalid={validationError && !industryMajor ? "true" : "false"}
+                  >
                     <SelectValue placeholder="업종을 선택하세요" />
                   </SelectTrigger>
                   <SelectContent>
@@ -95,12 +122,19 @@ export default function Step1Input() {
                   세부 업종
                 </Label>
                 <Select 
-                  value={subIndustry} 
-                  onValueChange={setSubIndustry}
-                  disabled={!industry}
+                  value={industryMid} 
+                  onValueChange={(value) => {
+                    setIndustryMid(value);
+                    setValidationError("");
+                  }}
+                  disabled={!industryMajor}
                 >
-                  <SelectTrigger id="industry-sub" className="h-12">
-                    <SelectValue placeholder={industry ? "세부 업종 선택" : "먼저 주업종을 선택하세요"} />
+                  <SelectTrigger
+                    id="industry-sub"
+                    className={`h-12 ${validationError && !industryMid ? "border-red-500 ring-2 ring-red-100" : ""}`}
+                    aria-invalid={validationError && !industryMid ? "true" : "false"}
+                  >
+                    <SelectValue placeholder={industryMajor ? "세부 업종 선택" : "먼저 주업종을 선택하세요"} />
                   </SelectTrigger>
                   <SelectContent>
                     {selectedIndustryData?.subIndustries.map((sub) => (
@@ -113,6 +147,25 @@ export default function Step1Input() {
               </div>
             </div>
           </div>
+
+          {/* Region Selection */}
+          <div className="space-y-2">
+            <Label htmlFor="region" className="text-base font-semibold">
+              {"\uC9C0\uC5ED"}
+            </Label>
+            <Select value={region} onValueChange={setRegion}>
+              <SelectTrigger id="region" className="h-12">
+                <SelectValue placeholder={"\uC9C0\uC5ED\uC744 \uC120\uD0DD\uD558\uC138\uC694"} />
+              </SelectTrigger>
+              <SelectContent>
+                {regions.map((item) => (
+                  <SelectItem key={item.value} value={item.value}>
+                    {item.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
           
           {/* Employee Count Slider */}
           <div className="space-y-4">
@@ -123,28 +176,28 @@ export default function Step1Input() {
             <div className="space-y-4">
               <div className="flex items-center justify-between">
                 <span className="text-3xl font-bold text-blue-600">
-                  {employeeCount[0]}명
+                  {workerCount[0]}명
                 </span>
                 <div className="flex gap-2">
                   <Button
                     variant="outline"
                     size="sm"
-                    onClick={() => setEmployeeCount([Math.max(1, employeeCount[0] - 5)])}
+                    onClick={() => setWorkerCount([Math.max(1, workerCount[0] - 5)])}
                   >
                     -5
                   </Button>
                   <Button
                     variant="outline"
                     size="sm"
-                    onClick={() => setEmployeeCount([Math.min(200, employeeCount[0] + 5)])}
+                    onClick={() => setWorkerCount([Math.min(200, workerCount[0] + 5)])}
                   >
                     +5
                   </Button>
                 </div>
               </div>
               <Slider
-                value={employeeCount}
-                onValueChange={setEmployeeCount}
+                value={workerCount}
+                onValueChange={setWorkerCount}
                 min={1}
                 max={200}
                 step={1}
@@ -156,6 +209,19 @@ export default function Step1Input() {
               </div>
             </div>
           </div>
+
+          {validationError && (
+            <div
+              role="alert"
+              className="flex items-start gap-3 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-red-900"
+            >
+              <AlertCircle className="mt-0.5 h-5 w-5 flex-shrink-0 text-red-600" />
+              <div>
+                <p className="font-semibold">필수 정보가 비어 있어요</p>
+                <p className="text-sm text-red-700">{validationError}</p>
+              </div>
+            </div>
+          )}
           
           {/* Start Button */}
           <Button 

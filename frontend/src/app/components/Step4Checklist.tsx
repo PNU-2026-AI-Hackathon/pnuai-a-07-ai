@@ -5,13 +5,15 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "./ui/
 import { Progress } from "./ui/progress";
 import { Checkbox } from "./ui/checkbox";
 import { Badge } from "./ui/badge";
-import { CheckCircle2, Download, ExternalLink, Home, FileText } from "lucide-react";
+import { CheckCircle2, Download, ExternalLink, Home, FileText, Info } from "lucide-react";
 import { motion } from "motion/react";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
+import { toast } from "sonner";
 
 export default function Step4Checklist() {
   const navigate = useNavigate();
   const { businessData, checklist, toggleChecklistItem } = useSafety();
+  const [downloadNotice, setDownloadNotice] = useState("");
   
   useEffect(() => {
     if (!businessData || checklist.length === 0) {
@@ -29,7 +31,11 @@ export default function Step4Checklist() {
   
   const handleDownloadPDF = () => {
     // Mock PDF download
-    alert("PDF 다운로드 기능은 실제 서비스에서 구현됩니다.\n\n체크리스트가 PDF로 저장되어 현장에서 활용하실 수 있습니다.");
+    const message = "PDF 다운로드 기능은 실제 서비스에서 구현됩니다.";
+    setDownloadNotice(message);
+    toast.info("PDF 출력은 준비 중이에요", {
+      description: "체크리스트를 PDF로 저장하는 기능이 연결될 예정입니다.",
+    });
   };
   
   return (
@@ -43,7 +49,7 @@ export default function Step4Checklist() {
           🔴 법적 체크리스트
         </h1>
         <p className="text-gray-600">
-          {businessData.industry} · {businessData.subIndustry} 필수 안전 조치사항
+          {businessData.industryMajor} · {businessData.industryMid} · {businessData.region} 필수 안전 조치사항
         </p>
       </div>
       
@@ -165,6 +171,20 @@ export default function Step4Checklist() {
       </Card>
       
       {/* Action Buttons */}
+      {downloadNotice && (
+        <div
+          role="status"
+          className="mb-4 flex items-start gap-3 rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-blue-900"
+        >
+          <Info className="mt-0.5 h-5 w-5 flex-shrink-0 text-blue-600" />
+          <div>
+            <p className="font-semibold">PDF 출력은 준비 중이에요</p>
+            <p className="text-sm text-blue-700">
+              {downloadNotice} 체크리스트가 PDF로 저장되어 현장에서 활용될 수 있도록 연결될 예정입니다.
+            </p>
+          </div>
+        </div>
+      )}
       <div className="flex flex-col sm:flex-row gap-4">
         <Button
           variant="outline"
