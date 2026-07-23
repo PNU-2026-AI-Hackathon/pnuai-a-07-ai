@@ -16,4 +16,4 @@ export const router = createBrowserRouter([
       { path: "checklist", Component: Step4Checklist },
     ],
   },
-]);
+], { basename: import.meta.env.BASE_URL });
