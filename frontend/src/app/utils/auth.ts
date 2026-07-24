@@ -1,5 +1,6 @@
 const ACCESS_TOKEN_KEY = "safework_access_token";
 const TOKEN_TYPE_KEY = "safework_token_type";
+const DEMO_SESSION_KEY = "safework_demo_session";
 
 export type AuthResponse = {
   accessToken: string;
@@ -29,4 +30,12 @@ export function isAuthenticated() {
 export function clearAuthToken() {
   localStorage.removeItem(ACCESS_TOKEN_KEY);
   localStorage.removeItem(TOKEN_TYPE_KEY);
+}
+
+export function startDemoSession() {
+  sessionStorage.setItem(DEMO_SESSION_KEY, "active");
+}
+
+export function hasDemoSession() {
+  return sessionStorage.getItem(DEMO_SESSION_KEY) === "active";
 }
