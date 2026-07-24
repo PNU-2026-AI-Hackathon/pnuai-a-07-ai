@@ -7,7 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "./ui/
 import { Input } from "./ui/input";
 import { Label } from "./ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "./ui/tabs";
-import { saveAuthToken, type AuthResponse } from "../utils/auth";
+import { saveAuthToken, startDemoSession, type AuthResponse } from "../utils/auth";
 
 type AuthMode = "login" | "register";
 
@@ -42,6 +42,7 @@ async function getErrorMessage(response: Response, mode: AuthMode) {
 export default function AuthPage() {
   const navigate = useNavigate();
   const location = useLocation();
+  const isDemoMode = import.meta.env.VITE_DEMO_MODE === "true";
   const [mode, setMode] = useState<AuthMode>("login");
   const [form, setForm] = useState<AuthForm>(initialForm);
   const [error, setError] = useState("");
@@ -55,6 +56,12 @@ export default function AuthPage() {
   const updateField = (field: keyof AuthForm, value: string) => {
     setForm((current) => ({ ...current, [field]: value }));
     setError("");
+  };
+
+  const beginDemo = () => {
+    startDemoSession();
+    toast.success("데모 화면으로 이동합니다.");
+    navigate(redirectTo, { replace: true });
   };
 
   const validate = () => {
@@ -133,7 +140,9 @@ export default function AuthPage() {
               <span className="block">시작하세요</span>
             </h1>
             <p className="max-w-md text-base leading-7 text-gray-600">
-              <span className="block">로그인 후 사업장 정보를 입력하면</span>
+              <span className="block">
+                {isDemoMode ? "데모를 시작하고 사업장 정보를 입력하면" : "로그인 후 사업장 정보를 입력하면"}
+              </span>
               <span className="block">위험 리포트와 예방 체크리스트를 확인할 수 있습니다.</span>
             </p>
           </div>
@@ -156,78 +165,101 @@ export default function AuthPage() {
 
         <Card className="border-2 shadow-lg">
           <CardHeader>
-            <CardTitle className="text-xl">계정으로 계속하기</CardTitle>
-            <CardDescription>백엔드 인증 API와 연결된 로그인/회원가입 화면입니다.</CardDescription>
+            <CardTitle className="text-xl">
+              {isDemoMode ? "데모로 계속하기" : "계정으로 계속하기"}
+            </CardTitle>
+            <CardDescription>
+              {isDemoMode
+                ? "현재는 프론트엔드 데모 모드입니다. 로그인 없이 주요 화면을 확인할 수 있습니다."
+                : "백엔드 인증 API와 연결된 로그인/회원가입 화면입니다."}
+            </CardDescription>
           </CardHeader>
           <CardContent>
-            <Tabs value={mode} onValueChange={(value) => {
-              setMode(value as AuthMode);
-              setError("");
-            }}>
-              <TabsList className="mb-6 grid h-11 w-full grid-cols-2 rounded-md">
-                <TabsTrigger className="rounded-md" value="login">로그인</TabsTrigger>
-                <TabsTrigger className="rounded-md" value="register">회원가입</TabsTrigger>
-              </TabsList>
-
-              <form onSubmit={submitAuth} className="space-y-5">
-                <TabsContent value="login" className="mt-0 space-y-5">
-                  <EmailPasswordFields form={form} error={error} updateField={updateField} />
-                </TabsContent>
-
-                <TabsContent value="register" className="mt-0 space-y-5">
-                  <div className="space-y-2">
-                    <Label htmlFor="name" className="flex items-center gap-2 font-semibold">
-                      <UserRound className="h-4 w-4 text-blue-600" />
-                      이름
-                    </Label>
-                    <Input
-                      id="name"
-                      value={form.name}
-                      onChange={(event) => updateField("name", event.target.value)}
-                      placeholder="이름을 입력하세요"
-                      className="h-12"
-                      aria-invalid={Boolean(error && !form.name.trim())}
-                    />
-                  </div>
-
-                  <EmailPasswordFields form={form} error={error} updateField={updateField} />
-
-                  <div className="space-y-2">
-                    <Label htmlFor="phone" className="flex items-center gap-2 font-semibold">
-                      <Phone className="h-4 w-4 text-green-600" />
-                      전화번호 <span className="text-sm font-normal text-gray-500">선택</span>
-                    </Label>
-                    <Input
-                      id="phone"
-                      value={form.phone}
-                      onChange={(event) => updateField("phone", event.target.value)}
-                      placeholder="010-1234-5678"
-                      className="h-12"
-                    />
-                  </div>
-                </TabsContent>
-
-                {error && (
-                  <div
-                    role="alert"
-                    className="flex items-start gap-3 rounded-md border border-red-200 bg-red-50 px-4 py-3 text-red-900"
-                  >
-                    <AlertCircle className="mt-0.5 h-5 w-5 flex-shrink-0 text-red-600" />
-                    <p className="text-sm">{error}</p>
-                  </div>
-                )}
-
+            {isDemoMode ? (
+              <div className="space-y-4">
+                <div className="rounded-md border border-blue-200 bg-blue-50 px-4 py-3 text-sm leading-6 text-blue-950">
+                  데모에서 입력한 정보는 서버에 저장되지 않습니다. 주요 진단 화면과 이동 흐름을 자유롭게 확인하세요.
+                </div>
                 <Button
-                  type="submit"
+                  type="button"
                   size="lg"
-                  disabled={isSubmitting}
+                  onClick={beginDemo}
                   className="h-12 w-full bg-blue-600 text-base font-semibold hover:bg-blue-700"
                 >
-                  <span>{isSubmitting ? "처리 중..." : mode === "login" ? "로그인하고 진단 시작" : "가입하고 진단 시작"}</span>
+                  <span>데모로 진단 시작</span>
                   <ArrowRight className="h-5 w-5" />
                 </Button>
-              </form>
-            </Tabs>
+              </div>
+            ) : (
+              <Tabs value={mode} onValueChange={(value) => {
+                setMode(value as AuthMode);
+                setError("");
+              }}>
+                <TabsList className="mb-6 grid h-11 w-full grid-cols-2 rounded-md">
+                  <TabsTrigger className="rounded-md" value="login">로그인</TabsTrigger>
+                  <TabsTrigger className="rounded-md" value="register">회원가입</TabsTrigger>
+                </TabsList>
+
+                <form onSubmit={submitAuth} className="space-y-5">
+                  <TabsContent value="login" className="mt-0 space-y-5">
+                    <EmailPasswordFields form={form} error={error} updateField={updateField} />
+                  </TabsContent>
+
+                  <TabsContent value="register" className="mt-0 space-y-5">
+                    <div className="space-y-2">
+                      <Label htmlFor="name" className="flex items-center gap-2 font-semibold">
+                        <UserRound className="h-4 w-4 text-blue-600" />
+                        이름
+                      </Label>
+                      <Input
+                        id="name"
+                        value={form.name}
+                        onChange={(event) => updateField("name", event.target.value)}
+                        placeholder="이름을 입력하세요"
+                        className="h-12"
+                        aria-invalid={Boolean(error && !form.name.trim())}
+                      />
+                    </div>
+
+                    <EmailPasswordFields form={form} error={error} updateField={updateField} />
+
+                    <div className="space-y-2">
+                      <Label htmlFor="phone" className="flex items-center gap-2 font-semibold">
+                        <Phone className="h-4 w-4 text-green-600" />
+                        전화번호 <span className="text-sm font-normal text-gray-500">선택</span>
+                      </Label>
+                      <Input
+                        id="phone"
+                        value={form.phone}
+                        onChange={(event) => updateField("phone", event.target.value)}
+                        placeholder="010-1234-5678"
+                        className="h-12"
+                      />
+                    </div>
+                  </TabsContent>
+
+                  {error && (
+                    <div
+                      role="alert"
+                      className="flex items-start gap-3 rounded-md border border-red-200 bg-red-50 px-4 py-3 text-red-900"
+                    >
+                      <AlertCircle className="mt-0.5 h-5 w-5 flex-shrink-0 text-red-600" />
+                      <p className="text-sm">{error}</p>
+                    </div>
+                  )}
+
+                  <Button
+                    type="submit"
+                    size="lg"
+                    disabled={isSubmitting}
+                    className="h-12 w-full bg-blue-600 text-base font-semibold hover:bg-blue-700"
+                  >
+                    <span>{isSubmitting ? "처리 중..." : mode === "login" ? "로그인하고 진단 시작" : "가입하고 진단 시작"}</span>
+                    <ArrowRight className="h-5 w-5" />
+                  </Button>
+                </form>
+              </Tabs>
+            )}
           </CardContent>
         </Card>
       </div>

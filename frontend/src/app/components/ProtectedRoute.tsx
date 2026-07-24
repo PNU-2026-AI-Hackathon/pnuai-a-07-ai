@@ -1,10 +1,15 @@
 import { Navigate, Outlet, useLocation } from "react-router";
-import { isAuthenticated } from "../utils/auth";
+import { hasDemoSession, isAuthenticated } from "../utils/auth";
 
 export default function ProtectedRoute() {
   const location = useLocation();
+  const isDemoMode = import.meta.env.VITE_DEMO_MODE === "true";
 
-  if (import.meta.env.VITE_DEMO_MODE === "true") {
+  if (isDemoMode && !hasDemoSession()) {
+    return <Navigate to="/login" replace state={{ from: location }} />;
+  }
+
+  if (isDemoMode) {
     return <Outlet />;
   }
 
