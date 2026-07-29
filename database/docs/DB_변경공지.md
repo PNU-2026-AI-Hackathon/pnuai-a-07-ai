@@ -1,80 +1,60 @@
-# DB 변경 공지 (데이터베이스 파트 → 전체)
+# 📣 DB 변경공지 — 사후 대응 + 사전 예측 추가
 
-작성: 강주호 (DB) · 대상: 백엔드·ML·프론트
-요약: **체크리스트가 20 → 835문항으로 전면 교체(item_code 전부 변경)**, 진단 결과 저장 스키마 확장, 참조 도메인 뷰 추가. 각 파트 확인 필요.
+> 대상: ML · 백엔드 · 프론트 파트
+> 담당: 강주호 (DB)
 
----
-
-## ⚠️ 가장 중요 — 체크리스트 item_code 전면 변경
-
-기존 수기 20문항(`MFG-LOTO-MAINT` 등)을 **SIF→LLM 생성 835문항으로 교체**했습니다.
-
-- 건설 450 + 제조 385 = **835문항**
-- item_code 형식: **`CON-0001`~`CON-0450`, `MFG-0001`~`MFG-0385`**
-- 기존 20개 코드는 **전부 삭제됨** (더 이상 유효하지 않음)
-- 새 차원 추가: **`work_type`(작업)** — 굴착작업·거푸집 등 68종
-- 각 문항이 실제 재해개요에 근거 (`evidence_cases` JSONB)
-
-**→ item_code를 참조하는 모든 곳(ML 입력, 프론트 문항 렌더링)을 새 목록으로 교체해야 합니다.**
-전체 목록은 `SELECT * FROM v_ref_checklist;` 로 확인.
+중간발표 지적사항(사후 행정·법률 처리 지원 / 포괄적 조언 → 구체화)을 반영해,
+**사후 대응 3계층 + 사전 예측**을 DB 함수로 추가했습니다. 모두 실데이터로 동작합니다.
 
 ---
 
-## 파트별 할 일
+## 1. 새 테이블
 
-### ML 파트
-
-1. **`checklist_scores` 입력 키를 새 item_code 835개로 교체.** `GET /predict/checklist-items` 응답을 `v_ref_checklist` 기준으로 갱신.
-2. **진단 응답 저장 컬럼 준비됨** — `RiskPredictResponse`의 아래 필드가 `risk_assessment`에 그대로 저장 가능:
-   - `risk_score / risk_grade` — **NULL 허용으로 변경** (NONE 매칭 시)
-   - `base_component / checklist_component / match_level` — 실제 컬럼 추가됨
-   - `top_risks[] → predicted_accident_types` (JSONB), `severity_prediction[] → predicted_severity` (JSONB)
-   - `method` enum에 **`LIGHTGBM` 추가**
-3. **아직 ML이 줘야 할 것 (계약 완성 위해):**
-   - **sub_industry 58→44 정규화 매핑** — DB `code_sub_industry`에 58종 스켈레톤 만들어 뒀음. ML의 44종 규칙 주면 `model_category` 채움.
-   - **`construction_amount` 출처** — accident_case에 없는 컬럼. 어느 데이터로 학습했는지 확인 필요.
-   - **`size_class` 매핑 반영** — DB 10종, 모델 9종. `code_size_class.model_size_class`에 `20~29인·30~49인 → 20~49인` 매핑 넣어둠. predict 전 이 값 사용.
-
-### 백엔드 파트
-
-1. **진단 결과 저장** — ML 응답을 `risk_assessment`에 INSERT (컬럼 매핑은 위 ML 항목 참고, `SCHEMA_8_APICONTRACT.SQL` 하단 예시 있음).
-2. **참조 도메인 GET 엔드포인트** — 프론트가 유효값을 하드코딩하지 않게, 아래 뷰를 API로 노출:
-   - `v_ref_industry` (업종), `v_ref_size_class` (규모, model_size_class 포함)
-   - `v_ref_region` (지역), `v_ref_checklist` (체크리스트 835), `v_ref_work_type` (작업 목록)
-3. **`workplace` 등록 시** 업종·규모·지역은 FK로 마스터 값만 허용됨 (잘못된 값은 DB가 거부).
-
-### 프론트 파트
-
-1. **체크리스트 화면** — 835문항 전부 묻지 말 것. 사업장이 하는 **작업(work_type)을 먼저 선택** → 그 작업 문항만 표시. (`v_ref_work_type`로 작업 목록, 선택된 작업으로 `v_ref_checklist` 필터)
-2. **입력값** — 업종/규모/지역은 `v_ref_*` 뷰가 주는 값 그대로 사용 (임의 문자열 금지).
-3. **답변 형식** — 문항당 예(안전조치 완료)/아니오(미비). '아니오'가 위험 가감점 대상.
+| 테이블 | 내용 | 적재 |
+|--------|------|------|
+| `admin_procedure` | 사고 후 행정절차 7종 (작업중지·중대재해보고·현장보존·산재조사표·요양급여신청·재발방지·수사대응). 기한·기관·처벌·법적근거 포함 | `SCHEMA_10_admin.sql` 시드 |
+| `policy_service` | 사업주 대상 정책·지원사업 | `fetch_policy.py` (gov24) |
+| `law_precedent` | 산재·중대재해 판례 | `fetch_precedents.py` (국가법령정보) |
+| `law_admin_rule` | 고시·훈령·예규 (행정규칙) | `fetch_admrules.py` (국가법령정보) |
+| `accident_type_dist` | 업종×규모×지역별 재해유형 분포 (accident_case 64만 집계) | `SCHEMA_15_predict.sql` |
 
 ---
 
-## 진단 스코어링 방식 (참고)
+## 2. 새 함수 (백엔드/ML 호출 지점)
 
-콜드스타트 위험점수 = **베이스(0~60) + 체크리스트(0~40)**
-- 베이스: 업종×규모×지역 중대재해비율의 백분위
-- 체크리스트: **(미비 항목 가중치합 / 응답 가중치합) × 40** — 비율 기반이라 문항 수와 무관하게 안정. 중대문항은 가중치 ×2.
-- 실측 검증: 제조업·5인미만·부산 + 문항 20개 응답 → base 32.81 + checklist 12.97 = **risk_score 45.78 (MEDIUM)**
+### ① 사전 예측 — `fn_predict_accidents(업종, 규모, 지역, top_k)`
+사업장 특성을 넣으면 **예상 재해유형 top-K** 를 통계 베이스라인으로 반환.
+3단계 폴백(정확 → 업종+규모 → 업종)으로 항상 결과가 나옵니다.
+
+```sql
+SELECT * FROM fn_predict_accidents('제조업', '5인 미만', '부산', 5);
+-- rank | accident_type | cases | ratio  | death_ratio | match_level
+--   1  | 끼임          |  963  | 0.2334 |   0.0083    | EXACT
+```
+반환: `rank, accident_type, cases, ratio, death_ratio, match_level`
+> `ratio` = 발생 빈도, `death_ratio` = 그 유형의 사망 비율. "자주 vs 치명적" 구분 가능.
+
+### ② 사후 조언 — `fn_accident_advice(업종, 재해유형, 중대여부)`
+사고 발생 시 **행정·법률·정책 3계층 조언**을 우선순위순으로 반환.
+
+```sql
+SELECT layer, title, reason, detail, agency
+FROM fn_accident_advice('제조업', '끼임', TRUE);
+```
+반환: `layer(행정/법률/정책), priority, title, reason, detail, agency, reference, url`
 
 ---
 
-## 확인/논의 필요 (팀 공통)
+## 3. 파트별 참고
 
-| # | 안건 | 관련 |
-|---|---|---|
-| 1 | sub_industry 58→44 매핑표 제공 | ML → DB |
-| 2 | construction_amount 학습 출처 | ML |
-| 3 | 체크리스트 NA(해당 설비 없음) 처리 — API는 bool이라 표현 불가 | ML·백엔드 |
-| 4 | 발표 지적 5·6 반영 — 응답에 우선순위 조치(recommended_actions) 필드 추가할지 | 전체 |
-
-> 4번은 스키마 락 걸기 전이 추가 비용이 가장 쌉니다. 지금 정하는 걸 권장.
+- **백엔드**: 위 두 함수를 그대로 호출해 결과를 API로 노출하면 됩니다. 별도 조인 불필요.
+- **ML**: `accident_type_dist` 는 예측 모델의 통계 베이스라인/폴백으로 사용 가능.
+- **프론트**: 예측 결과의 `death_ratio` 로 "가장 흔한 사고" vs "가장 치명적 사고" 를 구분 표기 권장.
 
 ---
 
-## 적용된 스크립트 (실행 완료)
+## 4. 실행 순서 (기존 DB에 추가 적용 시)
 
-- `SCHEMA_8_APICONTRACT.SQL` — risk_assessment 확장, method enum, 참조 뷰, size_class/sub_industry 매핑
-- `SCHEMA_9_CHECKLIST_V2.SQL` — checklist_item 확장, 비율 스코어링
-- `load_checklist.py` — 835문항 적재 완료
+`SCHEMA_10` → `11` → `12` → `13` → `14` → `15` 순서로 DBeaver(Alt+X).
+수집 스크립트(`fetch_policy/precedents/admrules.py`)는 API 키를 실행 시 인자로 전달하세요
+(코드에 키 없음). 자세한 건 `README.md` 참고.
