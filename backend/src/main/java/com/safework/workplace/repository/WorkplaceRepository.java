@@ -7,6 +7,6 @@ import java.util.List;
 import java.util.Optional;
 
 public interface WorkplaceRepository extends JpaRepository<Workplace, Long> {
-    List<Workplace> findByMemberId(Long memberId);
-    Optional<Workplace> findByIdAndMemberId(Long id, Long memberId);
+    List<Workplace> findByOwnerId(Long ownerId);
+    Optional<Workplace> findByIdAndOwnerId(Long id, Long ownerId);
 }
