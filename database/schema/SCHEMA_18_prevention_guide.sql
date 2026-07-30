@@ -2,6 +2,9 @@
 -- 예방 가이드 : 사업장 특성 → 예상 재해유형 → 예방 체크리스트 → 근거 법령 (한 번에)
 -- 선행: SCHEMA_15(예측) · SCHEMA_16b(law_ref) · SCHEMA_17(근거법령). DBeaver Alt+X. 재실행 안전.
 
+-- 반환 타입(law_basis TEXT→TEXT[]) 변경을 위해 기존 함수 제거 후 재생성
+DROP FUNCTION IF EXISTS fn_prevention_guide(VARCHAR,VARCHAR,VARCHAR,INT,INT);
+
 CREATE OR REPLACE FUNCTION fn_prevention_guide(
     p_industry VARCHAR,          -- 업종 (제조업/건설업)
     p_size     VARCHAR,          -- 규모 (5인 미만 …)
@@ -18,7 +21,7 @@ RETURNS TABLE(
     question        TEXT,        -- 예방 점검 항목
     risk_weight     NUMERIC,
     is_critical     BOOLEAN,
-    law_basis       TEXT         -- 근거 법 조문 (요약)
+    law_basis       TEXT[]       -- 근거 법 조문 배열 (JDBC rs.getArray())
 ) LANGUAGE sql AS $$
     WITH pred AS (
         SELECT * FROM fn_predict_accidents(p_industry, p_size, p_region, p_top_k)
@@ -38,7 +41,7 @@ RETURNS TABLE(
     )
     SELECT r.accident_rank, r.accident_type, r.accident_ratio, r.death_ratio,
            r.item_code, r.work_type, r.question, r.risk_weight, r.is_critical,
-           (SELECT string_agg(DISTINCT la.law_name || ' ' || la.article_no, '; ')
+           (SELECT array_agg(DISTINCT la.law_name || ' ' || la.article_no)
             FROM   unnest(string_to_array(r.law_ref, ',')) AS x(aid)
             JOIN   law_article la ON la.article_id = trim(x.aid)::int) AS law_basis
     FROM   ranked r
