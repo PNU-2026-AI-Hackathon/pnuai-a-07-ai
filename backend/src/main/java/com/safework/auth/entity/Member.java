@@ -3,6 +3,8 @@ package com.safework.auth.entity;
 import com.safework.global.common.BaseTimeEntity;
 import jakarta.persistence.*;
 import lombok.*;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 @Entity
 @Table(name = "app_user")
@@ -29,6 +31,7 @@ public class Member extends BaseTimeEntity {
     private String phone;
 
     @Enumerated(EnumType.STRING)
+    @JdbcTypeCode(SqlTypes.NAMED_ENUM)
     @Column(nullable = false)
     @Builder.Default
     private MemberRole role = MemberRole.OWNER;

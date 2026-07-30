@@ -3,8 +3,10 @@ package com.safework.prevention.dto;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import lombok.Getter;
+import lombok.Setter;
 
 @Getter
+@Setter
 public class PreventionGuideRequest {
 
     @NotBlank(message = "업종은 필수입니다")

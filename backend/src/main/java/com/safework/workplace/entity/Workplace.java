@@ -28,16 +28,16 @@ public class Workplace extends BaseTimeEntity {
     @Column(nullable = false)
     private String industry;           // 대업종 (제조업, 건설업 등)
 
-    @Column(name = "sub_industry", nullable = false)
+    @Column(name = "sub_industry")
     private String subIndustry;        // 중업종 (금속가공, 조선업 등)
 
     @Column(nullable = false)
     private String region;             // 지역 (부산, 경남 등)
 
-    @Column(name = "employee_count", nullable = false)
+    @Column(name = "employee_count")
     private Integer employeeCount;     // 근로자 수
 
-    @Column(name = "size_class")
+    @Column(name = "size_class", nullable = false)
     private String sizeClass;          // 규모 구분 (5인 미만 등)
 
     private String address;            // 상세 주소
