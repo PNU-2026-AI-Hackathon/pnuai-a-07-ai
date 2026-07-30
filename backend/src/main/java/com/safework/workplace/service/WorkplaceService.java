@@ -23,16 +23,17 @@ public class WorkplaceService {
 
     @Transactional
     public WorkplaceResponse create(Long memberId, WorkplaceCreateRequest request) {
-        Member member = memberRepository.findById(memberId)
+        Member owner = memberRepository.findById(memberId)
                 .orElseThrow(() -> new IllegalArgumentException("회원을 찾을 수 없습니다."));
 
         Workplace workplace = Workplace.builder()
-                .member(member)
-                .industryMajor(request.getIndustryMajor())
-                .industryMid(request.getIndustryMid())
+                .owner(owner)
+                .industry(request.getIndustry())
+                .subIndustry(request.getSubIndustry())
                 .region(request.getRegion())
-                .workerCount(request.getWorkerCount())
-                .companyName(request.getCompanyName())
+                .employeeCount(request.getEmployeeCount())
+                .sizeClass(request.getSizeClass())
+                .name(request.getName())
                 .address(request.getAddress())
                 .build();
 
@@ -41,28 +42,29 @@ public class WorkplaceService {
     }
 
     public List<WorkplaceResponse> getMyWorkplaces(Long memberId) {
-        return workplaceRepository.findByMemberId(memberId).stream()
+        return workplaceRepository.findByOwnerId(memberId).stream()
                 .map(WorkplaceResponse::from)
                 .collect(Collectors.toList());
     }
 
     public WorkplaceResponse getWorkplace(Long memberId, Long workplaceId) {
-        Workplace workplace = workplaceRepository.findByIdAndMemberId(workplaceId, memberId)
+        Workplace workplace = workplaceRepository.findByIdAndOwnerId(workplaceId, memberId)
                 .orElseThrow(() -> new IllegalArgumentException("사업장을 찾을 수 없습니다."));
         return WorkplaceResponse.from(workplace);
     }
 
     @Transactional
     public WorkplaceResponse update(Long memberId, Long workplaceId, WorkplaceCreateRequest request) {
-        Workplace workplace = workplaceRepository.findByIdAndMemberId(workplaceId, memberId)
+        Workplace workplace = workplaceRepository.findByIdAndOwnerId(workplaceId, memberId)
                 .orElseThrow(() -> new IllegalArgumentException("사업장을 찾을 수 없습니다."));
 
         workplace.update(
-                request.getIndustryMajor(),
-                request.getIndustryMid(),
+                request.getIndustry(),
+                request.getSubIndustry(),
                 request.getRegion(),
-                request.getWorkerCount(),
-                request.getCompanyName(),
+                request.getEmployeeCount(),
+                request.getSizeClass(),
+                request.getName(),
                 request.getAddress()
         );
 

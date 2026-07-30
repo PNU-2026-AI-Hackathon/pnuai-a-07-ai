@@ -11,22 +11,24 @@ import java.time.LocalDateTime;
 public class WorkplaceResponse {
 
     private Long id;
-    private String industryMajor;
-    private String industryMid;
+    private String name;
+    private String industry;
+    private String subIndustry;
     private String region;
-    private Integer workerCount;
-    private String companyName;
+    private Integer employeeCount;
+    private String sizeClass;
     private String address;
     private LocalDateTime createdAt;
 
     public static WorkplaceResponse from(Workplace workplace) {
         return new WorkplaceResponse(
                 workplace.getId(),
-                workplace.getIndustryMajor(),
-                workplace.getIndustryMid(),
+                workplace.getName(),
+                workplace.getIndustry(),
+                workplace.getSubIndustry(),
                 workplace.getRegion(),
-                workplace.getWorkerCount(),
-                workplace.getCompanyName(),
+                workplace.getEmployeeCount(),
+                workplace.getSizeClass(),
                 workplace.getAddress(),
                 workplace.getCreatedAt()
         );
