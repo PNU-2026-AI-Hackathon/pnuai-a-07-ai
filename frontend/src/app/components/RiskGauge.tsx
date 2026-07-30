@@ -58,7 +58,12 @@ export function RiskGauge({ riskScore, riskLevel }: RiskGaugeProps) {
   return (
     <div className="relative w-full max-w-md mx-auto">
       {/* Gauge Background */}
-      <svg viewBox="0 0 200 120" className="w-full">
+      <svg
+        viewBox="0 0 200 130"
+        className="block w-full"
+        role="img"
+        aria-label={`종합 위험도 ${riskScore}점, ${config.text} 단계`}
+      >
         {/* Background arc */}
         <path
           d={describeArc(centerX, centerY, radius, -90, 90)}
@@ -114,24 +119,38 @@ export function RiskGauge({ riskScore, riskLevel }: RiskGaugeProps) {
           <circle cx="100" cy="100" r="6" fill={config.color} />
         </g>
         
-        {/* Center labels */}
-        <text x="18" y="110" className="text-xs fill-gray-500">0</text>
-        <text x="172" y="110" className="text-xs fill-gray-500">100</text>
+        {/* Scale labels */}
+        <text
+          x="30"
+          y="126"
+          textAnchor="middle"
+          className="text-xs fill-gray-500"
+        >
+          0
+        </text>
+        <text
+          x="170"
+          y="126"
+          textAnchor="middle"
+          className="text-xs fill-gray-500"
+        >
+          100
+        </text>
       </svg>
       
       {/* Score Display */}
-      <div className="text-center -mt-8">
+      <div className="mt-2 flex flex-col items-center gap-2 text-center">
         <motion.div
           initial={{ scale: 0 }}
           animate={{ scale: 1 }}
           transition={{ delay: 0.5, type: "spring" }}
-          className="inline-block"
+          className="inline-flex"
         >
           <div className={`${config.bgColor} ${config.textColor} px-6 py-3 rounded-full font-bold text-2xl`}>
             {riskScore}점
           </div>
         </motion.div>
-        <div className={`mt-2 text-xl font-semibold ${config.textColor}`}>
+        <div className={`text-xl font-semibold ${config.textColor}`}>
           {config.text} 단계
         </div>
       </div>
