@@ -1,6 +1,7 @@
 package com.safework.auth.service;
 
 import com.safework.auth.dto.LoginRequest;
+import com.safework.auth.dto.MemberResponse;
 import com.safework.auth.dto.SignUpRequest;
 import com.safework.auth.dto.TokenResponse;
 import com.safework.auth.entity.Member;
@@ -49,5 +50,17 @@ public class AuthService {
 
         String token = jwtTokenProvider.createToken(member.getId(), member.getEmail());
         return TokenResponse.of(token);
+    }
+
+    /**
+     * 토큰의 주인 정보.
+     *
+     * 토큰은 유효한데 사용자가 없을 수 있다(탈퇴, DB 초기화, 다른 환경에서 발급한 토큰).
+     * 그때 500 이 아니라 "사용자를 찾을 수 없습니다"로 내려보내 프론트가 로그아웃 처리하게 한다.
+     */
+    public MemberResponse getMe(Long memberId) {
+        Member member = memberRepository.findById(memberId)
+                .orElseThrow(() -> new IllegalArgumentException("사용자를 찾을 수 없습니다."));
+        return new MemberResponse(member);
     }
 }

@@ -30,6 +30,25 @@ class SafetyFlowIntegrationTest extends IntegrationTest {
     }
 
     @Test
+    @DisplayName("내 정보 조회는 토큰의 주인을 알려주고 비밀번호는 담지 않는다")
+    void meReturnsOwnerOfToken() throws Exception {
+        String email = "me-" + System.nanoTime() + "@test.local";
+        String myToken = api.registerAndGetToken(email);
+
+        var result = api.getWithToken("/api/auth/me", myToken);
+
+        assertThat(result.getResponse().getStatus()).isEqualTo(200);
+        JsonNode body = json(result);
+        assertThat(body.get("email").asText()).isEqualTo(email);
+        assertThat(body.get("name").asText()).isEqualTo("테스트");
+        assertThat(body.get("userId").asLong()).isPositive();
+        assertThat(body.get("role").asText()).isEqualTo("OWNER");
+        // 해시라도 내보내면 안 된다.
+        assertThat(body.has("password")).isFalse();
+        assertThat(body.has("passwordHash")).isFalse();
+    }
+
+    @Test
     @DisplayName("체크리스트를 제출하면 위험도 진단까지 한 번에 끝난다")
     void submitChecklistThenAssessRisk() throws Exception {
         long workplaceId = api.createManufacturingWorkplace(token);

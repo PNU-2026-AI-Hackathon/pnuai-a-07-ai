@@ -60,6 +60,34 @@ POST /api/auth/login
 ```
 응답은 회원가입과 동일. **토큰 유효기간 1시간**입니다.
 
+## 1-3. 내 정보 조회
+
+```
+GET /api/auth/me
+```
+**200**
+```json
+{ "userId": 7, "email": "boss@example.com", "name": "구현서",
+  "phone": null, "role": "OWNER", "createdAt": "2026-08-04T04:23:48.746521" }
+```
+
+토큰만으로는 **화면에 이름을 띄울 수 없어서** 만들었습니다. "구현서 사장님 안녕하세요" 같은
+헤더를 그릴 때 쓰시면 됩니다.
+
+> JWT 를 프론트에서 직접 디코딩해 쓰지 마세요. 토큰 형식이 바뀌면 화면이 같이 깨집니다.
+
+**저장해 둔 토큰이 아직 살아 있는지 확인**하는 용도로도 좋습니다. 새로고침했을 때 이걸 먼저
+불러 보고 실패하면 로그인 화면으로 보내시면 됩니다.
+
+| 상황 | 응답 |
+|---|---|
+| 정상 | `200` |
+| 토큰 없음 · 만료 · 위조 | `403` |
+| 토큰은 유효한데 사용자가 없음 (DB 초기화 등) | `400` + `"사용자를 찾을 수 없습니다"` |
+
+`phone` 은 회원가입 때 안 넣으면 `null` 입니다. `role` 은 지금 전부 `OWNER` 입니다.
+비밀번호는 해시조차 내려가지 않습니다.
+
 ---
 
 # 2. 사업장
@@ -817,6 +845,11 @@ URL.revokeObjectURL(url);
 ```ts
 // 인증
 export interface TokenResponse { accessToken: string; tokenType: string; }
+
+export interface Me {
+  userId: number; email: string; name: string;
+  phone: string | null; role: 'OWNER' | 'ADMIN'; createdAt: string;
+}
 
 // 사업장
 export interface Workplace {
