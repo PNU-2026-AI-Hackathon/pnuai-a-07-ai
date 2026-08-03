@@ -1,0 +1,118 @@
+-- 통합 테스트용 최소 데이터.
+--
+-- 원본(사고 64만건 · SIF 6,032건 · 법령 2,547건)은 용량 때문에 git 에 없다.
+-- API 가 의미 있는 응답을 내려면 어디까지 필요한지만 추려서 넣는다.
+--   제조업 / 5인 미만 / 부산  → 끼임이 1순위로 나오도록 구성
+--   건설업 / 5인 미만 / 부산  → 떨어짐(추락) 사례가 붙도록 구성
+
+-- ============================================================
+-- 1. 법령 조문 + 청크 (법령 검색, 근거 법령)
+-- ============================================================
+INSERT INTO law_article (article_id, law_name, article_no, clause_no, title, content)
+OVERRIDING SYSTEM VALUE VALUES
+  (9001, '산업안전보건기준에 관한 규칙', '제87조', NULL, '원동기ㆍ회전축 등의 위험 방지',
+   '사업주는 기계의 원동기ㆍ회전축ㆍ기어ㆍ풀리ㆍ플라이휠ㆍ벨트 및 체인 등 근로자가 위험에 처할 우려가 있는 부위에 덮개ㆍ울ㆍ슬리브 및 건널다리 등을 설치하여야 한다.'),
+  (9002, '산업안전보건기준에 관한 규칙', '제42조', '제1항', '추락의 방지',
+   '사업주는 근로자가 추락하거나 넘어질 위험이 있는 장소에서는 비계를 조립하는 등의 방법으로 작업발판을 설치하여야 한다.'),
+  (9003, '산업안전보건법', '제29조', NULL, '근로자에 대한 안전보건교육',
+   '사업주는 소속 근로자에게 고용노동부령으로 정하는 바에 따라 정기적으로 안전보건교육을 하여야 한다.')
+ON CONFLICT DO NOTHING;
+
+INSERT INTO law_chunk (article_id, chunk_index, content) VALUES
+  (9001, 0, '[산업안전보건기준에 관한 규칙 제87조(원동기ㆍ회전축 등의 위험 방지)]
+사업주는 기계의 원동기ㆍ회전축ㆍ기어ㆍ풀리ㆍ플라이휠ㆍ벨트 및 체인 등 근로자가 끼임의 위험에 처할 우려가 있는 부위에 덮개ㆍ울ㆍ슬리브 및 건널다리 등을 설치하여야 한다.'),
+  (9002, 0, '[산업안전보건기준에 관한 규칙 제42조(추락의 방지) 제1항]
+사업주는 근로자가 추락하거나 넘어질 위험이 있는 장소에서는 비계를 조립하는 등의 방법으로 작업발판을 설치하여야 하며, 안전난간을 설치하여야 한다.'),
+  (9003, 0, '[산업안전보건법 제29조(근로자에 대한 안전보건교육)]
+사업주는 소속 근로자에게 정기적으로 안전보건교육을 하여야 한다.')
+ON CONFLICT DO NOTHING;
+
+-- ============================================================
+-- 2. 중대재해(SIF) 사례 — 사고 대처 가이드의 유사 사례
+--    accident_kind 는 기술어(추락), industry_div 는 '제조업등'/'건설업' 을 쓴다.
+-- ============================================================
+INSERT INTO sif_case (sif_id, industry_div, accident_kind, accident_summary,
+                      high_risk_situation, causal_factor, countermeasure) VALUES
+  (9101, '건설업', '추락', '2019년 3월경 공동주택 신축현장에서 재해자가 개구부 덮개를 밟고 이동하던 중 덮개가 뒤집히며 추락하여 사망',
+   '개구부 덮개가 고정되지 않은 상태', '개구부 방호 조치 미흡',
+   '▶ 추락할 위험이 있는 개구부에는 안전난간 또는 덮개를 충분한 강도로 설치
+▶ 덮개는 뒤집히거나 떨어지지 않도록 견고히 고정하고 개구부임을 표시'),
+  (9102, '건설업', '추락', '2018년 8월경 비계 해체작업 중 재해자가 안전대를 착용하지 않고 이동하다 추락',
+   '비계 해체작업 중 안전대 미착용', '안전대 부착설비 미설치',
+   '▶ 추락위험 장소 작업 시 안전대를 지급하고 착용 상태로 작업
+▶ 안전대를 걸 수 있는 부착설비를 사전에 설치')
+ON CONFLICT DO NOTHING;
+
+-- ============================================================
+-- 3. 점검 문항 — 제출·위험도·예방가이드의 기준
+--    category 는 일상어(끼임/떨어짐), law_ref 는 콤마로 이어붙인 article_id
+-- ============================================================
+INSERT INTO checklist_item (item_id, item_code, category, work_type, question, description,
+                            target_industry, risk_weight, is_critical, law_ref, display_order, is_active)
+OVERRIDING SYSTEM VALUE VALUES
+  (9201, 'TEST-MFG-0001', '끼임', '자동화 설비 작업',
+   '회전 구동부에 덮개 또는 방호장치가 설치되어 있는가?', '[끼임] 컨베이어 회전부에 손이 말려 들어간 사례',
+   '제조업', 12.0, true, '9001', 1, true),
+  (9202, 'TEST-MFG-0002', '끼임', '비정형 작업(정비·보수)',
+   '정비 작업 시 설비 운전을 정지하고 잠금(LOTO)을 하는가?', '[끼임] 정비 중 설비가 갑자기 작동한 사례',
+   '제조업', 10.0, true, '9001,9003', 2, true),
+  (9203, 'TEST-MFG-0003', '떨어짐', '고소 작업',
+   '고소 작업 시 안전난간 또는 작업발판을 설치하는가?', '[떨어짐] 사다리에서 떨어진 사례',
+   '제조업', 8.0, false, '9002', 3, true),
+  (9204, 'TEST-CON-0001', '떨어짐', '개구부 작업',
+   '개구부에 덮개 또는 안전난간을 설치하고 고정했는가?', '[떨어짐] 개구부 덮개가 뒤집혀 추락한 사례',
+   '건설업', 15.0, true, '9002', 1, true)
+ON CONFLICT DO NOTHING;
+
+-- ============================================================
+-- 4. 사고 통계 — fn_predict_accidents 가 집계해 쓰는 원천
+--    제조업/5인 미만/부산에서 끼임이 1순위가 되도록 건수를 준다.
+-- ============================================================
+-- accident_case 는 _archive/SCHEMA_2.sql 기준(case_id·year 없음)으로 넣는다.
+-- 실제 운영 DB(덤프)에는 case_id·year 가 더 있지만, 테스트는 레포의 스키마를 따른다.
+INSERT INTO accident_case (industry, sub_industry, accident_type, size_class,
+                           region, disease_flag, death_flag)
+SELECT '제조업', '금속가공', '끼임', '5인 미만', '부산', 0,
+       CASE WHEN g % 20 = 0 THEN 1 ELSE 0 END
+FROM generate_series(1, 60) g;
+
+INSERT INTO accident_case (industry, sub_industry, accident_type, size_class,
+                           region, disease_flag, death_flag)
+SELECT '제조업', '금속가공', '떨어짐', '5인 미만', '부산', 0,
+       CASE WHEN g % 10 = 0 THEN 1 ELSE 0 END
+FROM generate_series(1, 30) g;
+
+INSERT INTO accident_case (industry, sub_industry, accident_type, size_class,
+                           region, disease_flag, death_flag)
+SELECT '건설업', '건축', '떨어짐', '5인 미만', '부산', 0,
+       CASE WHEN g % 10 = 0 THEN 1 ELSE 0 END
+FROM generate_series(1, 40) g;
+
+-- SCHEMA_15 는 스키마 적재 시점(= accident_case 가 비어 있을 때) 분포를 만든다.
+-- 픽스처를 넣은 지금 다시 계산해 준다.
+TRUNCATE accident_type_dist;
+INSERT INTO accident_type_dist (industry, size_class, region, accident_type, n, death_n, ratio, death_ratio)
+WITH g AS (
+    SELECT industry, size_class, region, accident_type,
+           count(*)::int AS n, sum(death_flag)::int AS death_n
+    FROM accident_case
+    GROUP BY industry, size_class, region, accident_type
+),
+t AS (
+    SELECT industry, size_class, region, sum(n) AS tot FROM g
+    GROUP BY industry, size_class, region
+)
+SELECT g.industry, g.size_class, g.region, g.accident_type, g.n, g.death_n,
+       round(g.n::numeric / t.tot, 4),
+       round(g.death_n::numeric / NULLIF(g.n, 0), 4)
+FROM g JOIN t USING (industry, size_class, region);
+
+-- ============================================================
+-- 5. 콜드스타트 베이스라인 — fn_coldstart_score 의 기본 점수
+-- ============================================================
+INSERT INTO coldstart_baseline (baseline_id, industry, size_class, region, accident_count,
+                                death_count, serious_ratio, top_accident_type) VALUES
+  (1, '제조업', '5인 미만', '부산', 90, 4, 0.0444, '끼임'),
+  (2, '제조업', '5~9인',   '부산', 120, 3, 0.0250, '끼임'),
+  (3, '건설업', '5인 미만', '부산', 40, 4, 0.1000, '떨어짐')
+ON CONFLICT DO NOTHING;
