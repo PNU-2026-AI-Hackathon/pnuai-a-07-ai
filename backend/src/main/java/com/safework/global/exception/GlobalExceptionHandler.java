@@ -1,6 +1,7 @@
 package com.safework.global.exception;
 
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -24,6 +25,16 @@ public class GlobalExceptionHandler {
 
         return ResponseEntity.badRequest()
                 .body(Map.of("error", "입력값이 올바르지 않습니다.", "fields", fieldErrors));
+    }
+
+    /**
+     * 요청 본문 자체를 읽지 못한 경우(JSON 문법 오류, enum 에 없는 값 등).
+     * 클라이언트 입력 오류이므로 500 이 아니라 400 으로 돌려준다.
+     */
+    @ExceptionHandler(HttpMessageNotReadableException.class)
+    public ResponseEntity<Map<String, String>> handleNotReadable(HttpMessageNotReadableException e) {
+        return ResponseEntity.badRequest()
+                .body(Map.of("error", "요청 본문을 해석할 수 없습니다. 필드 형식과 허용값을 확인해 주세요."));
     }
 
     @ExceptionHandler(IllegalArgumentException.class)
