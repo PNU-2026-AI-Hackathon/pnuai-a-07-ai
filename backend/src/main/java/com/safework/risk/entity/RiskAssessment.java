@@ -50,7 +50,22 @@ public class RiskAssessment {
     @Column(name = "top_accident_type")
     private String topAccidentType;
 
-    /** 점수 근거: base, checklist, match_level, peer_serious_ratio */
+    /** 동종·동규모·동지역 통계에서 산출한 기본 점수 (0~60) */
+    @Column(name = "base_component")
+    private BigDecimal baseComponent;
+
+    /** 체크리스트 미비 항목에서 산출한 점수 (0~40) */
+    @Column(name = "checklist_component")
+    private BigDecimal checklistComponent;
+
+    /** 베이스라인 매칭 수준 (EXACT/INDUSTRY_SIZE/INDUSTRY/NONE) */
+    @Column(name = "match_level")
+    private String matchLevel;
+
+    /**
+     * ML 예측 시 사용한 피처. 콜드스타트 진단은 점수 근거를 위 컬럼들에 넣으므로
+     * 보통 비어 있다(SCHEMA_21 이전에는 여기에 jsonb 로 담았다).
+     */
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "raw_features")
     private Map<String, Object> rawFeatures;

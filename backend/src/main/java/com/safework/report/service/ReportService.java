@@ -121,9 +121,8 @@ public class ReportService {
         context.setVariable("assessedAt", TIMESTAMP.format(assessment.getAssessedAt()));
         context.setVariable("generatedAt", TIMESTAMP.format(java.time.OffsetDateTime.now()));
 
-        Map<String, Object> raw = assessment.getRawFeatures();
-        context.setVariable("baseComponent", raw == null ? null : raw.get("base"));
-        context.setVariable("checklistComponent", raw == null ? null : raw.get("checklist"));
+        context.setVariable("baseComponent", assessment.getBaseComponent());
+        context.setVariable("checklistComponent", assessment.getChecklistComponent());
 
         context.setVariable("deficientItems", loadDeficientItems(workplace.getId()));
         context.setVariable("predictions", loadPredictions(workplace));
