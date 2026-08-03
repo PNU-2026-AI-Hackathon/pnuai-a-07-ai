@@ -12,3 +12,6 @@ resp*.txt
 # 로컬 환경
 .env
 *.log
+
+# 기초 덤프는 용량이 커서 커밋하지 않는다 (README 는 유지)
+dump/*.sql
