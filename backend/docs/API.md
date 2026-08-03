@@ -433,7 +433,96 @@ ML 서버의 임베딩 검색을 사용합니다.
 
 ---
 
-# 7. 사고 대처 가이드
+# 7. 법령 상담 (RAG)
+
+질문하면 **관련 조문을 찾아 그 조문만 근거로** 답변합니다.
+
+```
+POST /api/chat/sessions                       대화 시작
+GET  /api/chat/sessions                       내 대화 목록
+POST /api/chat/sessions/{sessionId}/messages  질문하기
+GET  /api/chat/sessions/{sessionId}/messages  대화 이력
+```
+
+## 7-1. 대화 시작
+
+```json
+POST /api/chat/sessions
+{ "workplaceId": 5 }        // 선택. 없어도 됨
+```
+**201**
+```json
+{ "sessionId": "9a1b7587-...", "workplaceId": 5, "title": null,
+  "createdAt": "2026-08-03T22:30:00+09:00" }
+```
+`title` 은 첫 질문으로 자동으로 채워집니다.
+
+## 7-2. 질문하기 ⭐
+
+```json
+POST /api/chat/sessions/{sessionId}/messages
+{ "question": "사다리에서 떨어질 것 같은데 뭘 해야 하나요?" }
+```
+
+**200 — 답변 생성 모델이 있을 때**
+```json
+{
+  "sessionId": "9a1b7587-...",
+  "question": "사다리에서 떨어질 것 같은데 뭘 해야 하나요?",
+  "mode": "GENERATED",
+  "answer": "안전난간을 설치하셔야 합니다. ... (산업안전보건기준에 관한 규칙 제42조)",
+  "citedArticles": [ { "articleNo": "제42조", "title": "추락의 방지", "...": "..." } ],
+  "note": null,
+  "modelName": "gemini-2.0-flash"
+}
+```
+
+**200 — 모델이 없을 때 (현재 상태)**
+```json
+{
+  "mode": "RETRIEVAL_ONLY",
+  "answer": null,
+  "citedArticles": [ ... ],
+  "note": "답변 생성 모델이 설정되지 않아 관련 법령 조문만 보여드립니다.",
+  "modelName": null
+}
+```
+
+### ⚠️ 지금은 `RETRIEVAL_ONLY` 입니다
+
+LLM API 키가 아직 설정되지 않아 **답변 문장은 생성되지 않고 관련 조문만** 나옵니다.
+키가 들어오면 **같은 API 가 그대로 답변까지** 하게 됩니다 — 프론트 수정이 필요 없도록
+설계했습니다.
+
+화면은 이렇게 만들어 주세요.
+
+| `mode` | 화면 |
+|---|---|
+| `RETRIEVAL_ONLY` | `note` 를 안내로 띄우고 `citedArticles` 를 목록으로 표시 |
+| `GENERATED` | `answer` 를 말풍선으로, `citedArticles` 를 근거로 아래에 표시 |
+
+**`citedArticles` 는 두 경우 모두 채워집니다.** 답변이 있어도 근거 조문을 함께 보여주셔야
+사장님이 확인할 수 있습니다.
+
+## 7-3. 대화 이력
+
+```json
+GET /api/chat/sessions/{sessionId}/messages
+[
+  { "messageId": 1, "role": "USER", "content": "사다리에서...",
+    "citedArticles": [], "modelName": null, "createdAt": "..." },
+  { "messageId": 2, "role": "ASSISTANT", "content": "안전난간을...",
+    "citedArticles": [2053, 1573], "modelName": "gemini-2.0-flash", "createdAt": "..." }
+]
+```
+
+`role` 은 `USER` / `ASSISTANT` / `SYSTEM`. `citedArticles` 는 근거 조문의 `articleId` 배열입니다.
+
+> `RETRIEVAL_ONLY` 일 때는 답변이 없으므로 **질문만 이력에 남습니다.**
+
+---
+
+# 8. 사고 대처 가이드
 
 ```
 GET /api/accident-response?accidentType={재해유형}&industry={업종}
@@ -502,9 +591,9 @@ GET /api/accident-response?accidentType={재해유형}&industry={업종}
 
 ---
 
-# 8. PDF 리포트
+# 9. PDF 리포트
 
-## 8-1. 생성
+## 9-1. 생성
 
 ```
 POST /api/workplaces/{workplaceId}/reports
@@ -519,7 +608,7 @@ POST /api/workplaces/{workplaceId}/reports
   "generatedAt": "2026-08-03T17:50:31.702+09:00" }
 ```
 
-## 8-2. 다운로드
+## 9-2. 다운로드
 
 ```
 GET /api/reports/{reportId}/download
@@ -544,7 +633,7 @@ URL.revokeObjectURL(url);
 
 ---
 
-# 9. 에러 응답
+# 10. 에러 응답
 
 | 상태 | 상황 | 본문 |
 |---|---|---|
@@ -560,7 +649,7 @@ URL.revokeObjectURL(url);
 
 ---
 
-# 10. TypeScript 타입
+# 11. TypeScript 타입
 
 ```ts
 // 인증
@@ -655,6 +744,30 @@ export interface SimilarCase {
   countermeasures: string[]; score: number | null;
 }
 
+// 법령 상담
+export interface ChatSession {
+  sessionId: string; workplaceId: number | null;
+  title: string | null; createdAt: string;
+}
+
+export interface AskResponse {
+  sessionId: string; question: string;
+  mode: 'GENERATED' | 'RETRIEVAL_ONLY';
+  answer: string | null;          // RETRIEVAL_ONLY 면 null
+  citedArticles: LawArticle[];    // 두 모드 모두 채워짐
+  note: string | null;            // RETRIEVAL_ONLY 사유
+  modelName: string | null;
+}
+
+export interface ChatMessage {
+  messageId: number;
+  role: 'USER' | 'ASSISTANT' | 'SYSTEM';
+  content: string;
+  citedArticles: number[];   // articleId 배열
+  modelName: string | null;
+  createdAt: string;
+}
+
 // 리포트
 export interface ReportCreateResponse {
   reportId: number; status: 'PENDING' | 'GENERATING' | 'DONE' | 'FAILED';
@@ -664,7 +777,7 @@ export interface ReportCreateResponse {
 
 ---
 
-# 11. 로컬 실행
+# 12. 로컬 실행
 
 ```bash
 docker start safework-postgres
@@ -678,8 +791,11 @@ DB 스키마가 최신이 아니면 예방 가이드가 빈 배열로 나오거�
 
 ## 아직 없는 API (예정)
 
-- 법령 질문에 대한 **AI 답변 생성** — 지금은 조문 검색(6번)까지만 됩니다.
-  의미 검색(임베딩)이 붙으면 검색 품질도 함께 올라갑니다.
-- 맞춤 채용 추천
+- 맞춤 채용 추천 — `ncs_code`/`risk_ncs_mapping`/`job_posting` 데이터가 아직 없습니다.
+
+## 키가 들어오면 켜지는 것
+
+- **법령 상담 답변 생성**(7번) — 지금은 `RETRIEVAL_ONLY` 로 조문만 나옵니다.
+  `GEMINI_API_KEY` 환경변수만 넣으면 같은 API 가 답변까지 반환합니다. **프론트 수정 불필요.**
 
 필요한 필드나 형태가 있으면 미리 말씀해주세요. 만들 때 반영하겠습니다.
