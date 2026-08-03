@@ -40,6 +40,11 @@ dependencies {
 
 // Swagger
 	implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:2.8.0'
+
+	// PDF 리포트 (Thymeleaf 로 HTML 렌더링 -> openhtmltopdf 로 PDF 변환)
+	implementation 'org.springframework.boot:spring-boot-starter-thymeleaf'
+	implementation 'com.openhtmltopdf:openhtmltopdf-core:1.0.10'
+	implementation 'com.openhtmltopdf:openhtmltopdf-pdfbox:1.0.10'
 }
 
 tasks.named('test') {
