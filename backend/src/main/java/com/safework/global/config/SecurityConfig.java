@@ -29,7 +29,11 @@ public class SecurityConfig {
                         .requestMatchers(
                                 "/swagger-ui/**",
                                 "/v3/api-docs/**",
-                                "/api/auth/**"
+                                // /api/auth/** 로 열면 나중에 추가되는 인증 필요 경로까지
+                                // 같이 뚫린다(실제로 /me 를 추가하면서 그럴 뻔했다).
+                                // 로그인 없이 부를 수 있는 것만 하나씩 적는다.
+                                "/api/auth/register",
+                                "/api/auth/login"
                         ).permitAll()
                         .anyRequest().authenticated()
                 )

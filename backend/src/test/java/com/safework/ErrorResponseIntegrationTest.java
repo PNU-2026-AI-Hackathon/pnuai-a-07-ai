@@ -123,6 +123,15 @@ class ErrorResponseIntegrationTest extends IntegrationTest {
     }
 
     @Test
+    @DisplayName("/api/auth/me 도 토큰이 있어야 한다")
+    void meRequiresAuthentication() throws Exception {
+        // 공개 경로를 /api/auth/** 로 열어 두면 /me 까지 뚫려 principal 이 null 이 된다.
+        // register·login 만 열려 있어야 한다.
+        var result = mockMvc.perform(get("/api/auth/me")).andReturn();
+        assertThat(result.getResponse().getStatus()).isIn(401, 403);
+    }
+
+    @Test
     @DisplayName("남의 사업장에는 접근할 수 없다")
     void cannotAccessOthersWorkplace() throws Exception {
         long mine = api.createManufacturingWorkplace(token);
