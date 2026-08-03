@@ -78,23 +78,65 @@ def _base_component(serious_ratio: float) -> float:
     return round(percentile * 60, 2)
 
 
-def _checklist_component(checklist_scores: dict[str, bool]) -> float:
-    total = 0.0
-    for item_code, answered_yes in checklist_scores.items():
-        if answered_yes:
-            continue  # YES(안전조치 완료) → 가점 없음
-        item = CHECKLIST_ITEM_BY_CODE.get(item_code)
-        if item is None:
-            logger.warning("알 수 없는 checklist item_code: %s (무시)", item_code)
+class InvalidChecklistItemError(ValueError):
+    """v_ref_checklist에 없는 item_code가 요청에 포함된 경우.
+
+    2026-07-28 DB 공지로 체크리스트가 수기 20문항 → SIF/LLM 생성 835문항으로 전면
+    교체되면서 기존 코드(MFG-LOTO-MAINT 등)는 전부 무효화됐다. checklist_items.py
+    스냅샷이 아직 835문항으로 갱신되지 않아, 지금은 구코드만 유효하게 인식된다.
+    모르는 코드를 조용히 무시하면 "체크리스트를 다 어겨도 항상 0점"처럼 위험을
+    과소평가하는 방향으로 조용히 틀릴 수 있어서, 안전 진단 특성상 무시하지 않고
+    명시적으로 막는다 — 새 835문항 데이터가 들어오기 전까지는 신규 코드로 호출하면
+    전부 이 예외가 난다(의도된 동작).
+    """
+
+
+def _checklist_component(checklist_scores: dict[str, str]) -> float:
+    """(미비 항목 가중치 합 / 응답 항목 가중치 합) × 40. NA는 분모·분자 모두에서 제외.
+
+    835문항 체계에서는 work_type으로 필터된 일부만 응답되므로, 문항 수에 좌우되지
+    않는 비율 기반으로 계산한다 (2026-07-28 DB 변경공지, 기존 '가중치 합 그대로
+    누적 후 40 cap' 방식에서 교체됨).
+    """
+    unknown = [code for code in checklist_scores if code not in CHECKLIST_ITEM_BY_CODE]
+    if unknown:
+        raise InvalidChecklistItemError(
+            f"알 수 없는 checklist item_code {len(unknown)}개 (예: {unknown[:5]})"
+        )
+
+    answered_weight = 0.0
+    no_weight = 0.0
+    for item_code, answer in checklist_scores.items():
+        if answer == "NA":
             continue
-        total += item["risk_weight"] * (2 if item["is_critical"] else 1)
-    return round(min(40.0, total), 2)
+        item = CHECKLIST_ITEM_BY_CODE[item_code]
+        weight = item["risk_weight"] * (2 if item["is_critical"] else 1)
+        answered_weight += weight
+        if answer == "NO":
+            no_weight += weight
+
+    if answered_weight == 0:
+        return 0.0
+    return round(min(40.0, (no_weight / answered_weight) * 40), 2)
 
 
-def compute_coldstart_score(industry: str, size_class: str, region: str, checklist_scores: dict[str, bool]) -> dict:
+def compute_coldstart_score(industry: str, size_class: str, region: str, checklist_scores: dict[str, str]) -> dict:
     serious_ratio, top_accident_type, match_level = _match_baseline(industry, size_class, region)
+    checklist = _checklist_component(checklist_scores)  # item_code 검증 포함, 매칭과 무관하게 항상 계산
+
+    if match_level == "NONE":
+        # 2026-07-28 DB 변경공지: 베이스라인 매칭 자체가 없으면 risk_score/grade는 NULL
+        # (참고할 통계가 전혀 없는데 숫자를 만들어내면 오히려 오해 소지)
+        return {
+            "risk_score": None,
+            "risk_grade": None,
+            "base_component": None,
+            "checklist_component": checklist,
+            "match_level": match_level,
+            "top_accident_type": top_accident_type,
+        }
+
     base = _base_component(serious_ratio)
-    checklist = _checklist_component(checklist_scores)
     score = round(min(100.0, max(0.0, base + checklist)), 2)
 
     if score >= 75:

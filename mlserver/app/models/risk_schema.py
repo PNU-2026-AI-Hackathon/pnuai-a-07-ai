@@ -10,6 +10,8 @@ LightGBM 모델(predict.py)은 성별·연령·근무기간도 필요로 한다(
 DEFAULT_* 값과 필드 필수 여부를 다시 조정해야 한다.
 """
 
+from typing import Literal
+
 from pydantic import BaseModel, Field
 
 # 대표 근로자 프로필 기본값 — 실측 분포 기반이 아닌 임시값.
@@ -17,6 +19,9 @@ from pydantic import BaseModel, Field
 DEFAULT_GENDER = "남"
 DEFAULT_AGE_GROUP = "40세~44세"
 DEFAULT_WORK_PERIOD = "10년 이상"
+
+# DB answer_t enum과 동일 (2026-07-28 DB 변경공지: 체크리스트 835문항 교체 + NA 지원)
+ChecklistAnswer = Literal["YES", "NO", "NA"]
 
 
 class RiskPredictRequest(BaseModel):
@@ -33,10 +38,10 @@ class RiskPredictRequest(BaseModel):
     age_group: str | None = Field(None, description="예: '40세~44세'. 미지정 시 기본값 사용")
     work_period: str | None = Field(None, description="예: '1~2년 미만'. 미지정 시 기본값 사용")
 
-    checklist_scores: dict[str, bool] = Field(
+    checklist_scores: dict[str, ChecklistAnswer] = Field(
         default_factory=dict,
-        description="item_code → 답변. true=예(안전조치 완료), false=아니오(미비, 감점 대상). "
-        "유효한 item_code 20개는 GET /predict/checklist-items 참고",
+        description="item_code → 답변. YES(안전조치 완료) / NO(미비, 감점 대상) / NA(해당 설비·작업 없음, 채점 제외). "
+        "835개 item_code는 GET /predict/checklist-items 참고 (work_type으로 필터된 하위 목록만 보내면 됨)",
     )
 
     year: int = Field(2024, description="예측 기준 연도")
@@ -60,7 +65,9 @@ class RiskPredictResponse(BaseModel):
     )
     risk_grade: str | None = Field(None, description="LOW / MEDIUM / HIGH / CRITICAL")
     base_component: float | None = Field(None, description="베이스라인 백분위 점수 (0~60)")
-    checklist_component: float = Field(0.0, description="체크리스트 가감점 (0~40)")
+    checklist_component: float = Field(
+        0.0, description="체크리스트 가감점 (0~40). (미비 항목 가중치 합 / 응답 항목 가중치 합) × 40 — 문항 수와 무관한 비율 기반"
+    )
     match_level: str = Field(
         "NONE", description="베이스라인 매칭 단계: EXACT / INDUSTRY_SIZE / INDUSTRY / NONE"
     )

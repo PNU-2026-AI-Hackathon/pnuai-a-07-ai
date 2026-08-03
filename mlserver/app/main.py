@@ -1,21 +1,26 @@
 import logging
+from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 
-from app.api import risk
+from app.api import cases, rag, risk
 from app.core import model_loader
 from app.core.config import settings
 
 logging.basicConfig(level=logging.INFO)
 
-app = FastAPI(title=settings.PROJECT_NAME)
+
+@asynccontextmanager
+async def lifespan(_: FastAPI):
+    model_loader.load_all_models()
+    yield
+
+
+app = FastAPI(title=settings.PROJECT_NAME, lifespan=lifespan)
 
 app.include_router(risk.router)
-
-
-@app.on_event("startup")
-def on_startup() -> None:
-    model_loader.load_all_models()
+app.include_router(rag.router)
+app.include_router(cases.router)
 
 
 @app.get("/health")

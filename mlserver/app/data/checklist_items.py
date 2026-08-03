@@ -1,10 +1,14 @@
 """
-checklist_item 20개 항목 정적 스냅샷 (2026-07-23, 강주호 SQL dump 기준).
+⚠️ STALE (2026-07-28 기준) — checklist_item 20개 항목 스냅샷 (2026-07-23, 강주호 SQL dump 기준).
 
-fn_coldstart_score()의 체크리스트 가감점 계산(NO 응답 × risk_weight,
-is_critical이면 2배 가중)에 그대로 쓰인다. PG 접속정보가 확정되면
-이 상수 대신 checklist_item 테이블을 직접 조회하도록 바꿀 것 —
-그 전까지는 이 파일이 유일한 출처이므로 DB가 바뀌면 함께 갱신해야 한다.
+2026-07-28 DB 변경공지: 이 20문항(item_code 포함)은 전부 삭제되고 SIF/LLM 생성
+835문항(CON-0001~0450, MFG-0001~0385)으로 교체됐다. 이 파일은 아직 구버전이라
+지금 이 목록에 없는 item_code로 /predict/risk를 호출하면 InvalidChecklistItemError로
+거부된다(risk_service.py) — 새 835문항 데이터(v_ref_checklist)를 받으면 이 파일
+전체를 교체해야 실사용 가능하다.
+
+fn_coldstart_score()의 체크리스트 가감점 계산에 쓰인다. PG 접속정보가 확정되면
+이 상수 대신 checklist_item/v_ref_checklist 테이블을 직접 조회하도록 바꿀 것.
 """
 
 from typing import TypedDict

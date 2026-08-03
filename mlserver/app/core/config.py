@@ -31,6 +31,13 @@ class Settings(BaseSettings):
 
     OPENAI_API_KEY: str | None = None
 
+    # 법령/사고사례 RAG용 로컬 임베딩 모델 (OpenAI API 키 없이 sentence-transformers로 로컬 실행).
+    # 한국어 특화 모델 — 법령 텍스트가 전부 한국어라 다국어 모델보다 이쪽을 우선 채택.
+    EMBEDDING_MODEL_NAME: str = "jhgan/ko-sroberta-multitask"
+
+    # FAISS 인덱스 캐시 저장 위치 (매 startup마다 임베딩 재계산 안 하려고 디스크에 캐싱)
+    FAISS_INDEX_DIR: Path = Path(__file__).resolve().parents[1] / "data" / "faiss"
+
     @property
     def pg_dsn(self) -> str | None:
         if not (self.PG_HOST and self.PG_DB and self.PG_USER):
