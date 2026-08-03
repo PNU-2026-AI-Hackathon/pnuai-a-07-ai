@@ -1,7 +1,7 @@
 # SafeWork AI 백엔드 API 연동 문서
 
 > 프론트엔드 연동용 문서입니다. 아래 예시는 전부 **실제 서버 응답을 그대로 옮긴 것**입니다.
-> 마지막 갱신: 2026-08-03
+> 마지막 갱신: 2026-08-04
 >
 > API 를 추가하거나 응답 형태를 바꾸면 이 문서도 같은 PR 에서 함께 갱신해 주세요.
 
@@ -23,7 +23,10 @@
                                                       ↓
                                                   PDF 리포트
 
-예방 가이드는 위 흐름과 독립적으로 언제든 호출 가능
+예방 가이드 · 법령 상담은 위 흐름과 독립적으로 언제든 호출 가능
+
+사고가 실제로 났을 때 (별도 흐름)
+  사고 내용을 글로 입력 → 즉시 조치 · 법적 의무 · 행정 처리 · 처벌 안내  (8-2)
 ```
 
 ---
@@ -488,11 +491,10 @@ POST /api/chat/sessions/{sessionId}/messages
 }
 ```
 
-### ⚠️ 지금은 `RETRIEVAL_ONLY` 입니다
+### `mode` 두 가지를 모두 처리해 주세요
 
-LLM API 키가 아직 설정되지 않아 **답변 문장은 생성되지 않고 관련 조문만** 나옵니다.
-키가 들어오면 **같은 API 가 그대로 답변까지** 하게 됩니다 — 프론트 수정이 필요 없도록
-설계했습니다.
+`GEMINI_API_KEY` 환경변수가 설정된 서버에서는 `GENERATED` 로, 없으면 `RETRIEVAL_ONLY`
+(조문만)로 나옵니다. **같은 API·같은 구조라 프론트 수정은 필요 없습니다.**
 
 화면은 이렇게 만들어 주세요.
 
@@ -522,7 +524,16 @@ GET /api/chat/sessions/{sessionId}/messages
 
 ---
 
-# 8. 사고 대처 가이드
+# 8. 사고 대처
+
+사고가 났을 때 쓰는 화면입니다. 입력 방식이 두 가지입니다.
+
+| | 입력 | 쓰는 곳 |
+|---|---|---|
+| **8-1** | 재해유형을 **고름** | 평상시 "우리 업종에 이런 사고가 나면?" 미리 보기 |
+| **8-2** ⭐ | 사고 내용을 **글로 씀** | 실제 사고 직후. 법적 대응 · 행정 처리까지 안내 |
+
+## 8-1. 재해유형으로 조회
 
 ```
 GET /api/accident-response?accidentType={재해유형}&industry={업종}
@@ -588,6 +599,158 @@ GET /api/accident-response?accidentType={재해유형}&industry={업종}
 
 → `similarCases.length === 0` 이면 `similarCaseNote` 를 그대로 보여주시면 됩니다.
 조치 절차와 근거 법령은 업종과 무관하게 정상 제공됩니다.
+
+---
+
+## 8-2. 사고 내용을 글로 적어 대처 안내 받기 ⭐
+
+```json
+POST /api/accident-response/consult
+{
+  "situation": "어제 오후 4시쯤 공장에서 직원이 프레스 기계에 오른손이 끼여서 손가락이 절단됐습니다. 바로 119 불러서 병원으로 실려갔고 지금 입원 중입니다.",
+  "industry": "제조업",        // 선택. 있으면 유사 사례를 같은 업종에서 찾습니다
+  "accidentType": null         // 선택. 사용자가 유형을 직접 고쳤을 때만 보냅니다
+}
+```
+
+사고 직후에는 "떨어짐/끼임" 중에 고를 여유가 없습니다. **있었던 일을 그대로 적으면**
+재해유형을 알아내고, **즉시 조치 · 법적 의무 · 행정 처리 · 위반 시 처벌** 네 덩어리로
+안내합니다. 모든 항목에 근거 조문이 붙습니다.
+
+**200**
+```json
+{
+  "situation": "어제 오후 4시쯤 공장에서 직원이 프레스 기계에 ...",
+  "accidentType": "끼임",
+  "accidentTypeCertain": false,
+  "selectableTypes": ["끼임", "떨어짐", "넘어짐", "물체에맞음", "..."],
+
+  "severity": {
+    "level": "SEVERE",
+    "seriousAccidentLikely": true,
+    "note": "적어 주신 내용에 중대재해로 이어질 수 있는 표현이 있어 ...",
+    "criteria": [
+      "사망자가 1명 이상 발생한 재해",
+      "3개월 이상의 요양이 필요한 부상자가 동시에 2명 이상 발생한 재해",
+      "부상자 또는 직업성 질병자가 동시에 10명 이상 발생한 재해"
+    ],
+    "criteriaBasis": "산업안전보건법 시행규칙 제3조"
+  },
+
+  "mode": "GENERATED",
+  "note": null,
+  "model": "gemini-flash-latest",
+
+  "immediateActions": [ /* 8-1 의 actions 와 같은 형태 */ ],
+
+  "legalObligations": {
+    "guidance": "이번 사고가 중대재해에 해당한다면 사업주는 즉시 해당 작업을 중지시키고 ... (산업안전보건법 제54조 제1항)",
+    "items": [
+      { "title": "즉시 작업 중지 · 근로자 대피",
+        "detail": "중대재해가 발생했을 때에는 즉시 해당 작업을 중지시키고 ...",
+        "deadline": "즉시", "legalBasis": "산업안전보건법 제54조 제1항" },
+      { "title": "지체 없이 고용노동부 보고",
+        "detail": "중대재해가 발생한 사실을 알게 되면 지체 없이 ...",
+        "deadline": "지체 없이", "legalBasis": "산업안전보건법 제54조 제2항" }
+    ]
+  },
+
+  "administrativeSteps": {
+    "guidance": "근로자가 이번 사고로 3일 이상의 휴업이 필요한 부상을 입었다면, 재해 발생일로부터 1개월 이내에 ...",
+    "items": [
+      { "title": "산업재해조사표 작성 · 제출",
+        "detail": "사망자가 발생했거나 3일 이상의 휴업이 필요한 ... 별지 제30호서식의 산업재해조사표를 ...",
+        "deadline": "재해가 발생한 날부터 1개월 이내",
+        "legalBasis": "산업안전보건법 시행규칙 제73조 제1항" },
+      { "title": "산재보험 요양급여 신청 안내",
+        "detail": "... 근로복지공단(1588-0075)에 확인하세요.",
+        "deadline": null, "legalBasis": null }
+    ]
+  },
+
+  "penaltyRisk": {
+    "guidance": "산재 발생 사실을 숨기거나 사고 현장을 훼손하고 ... 구체적인 벌금이나 과태료 금액은 제공된 자료에 없으므로 관할 지방고용노동관서에 확인하세요.",
+    "items": [
+      { "title": "산업재해 발생 사실 은폐",
+        "detail": "산업재해 발생 사실을 은폐한 자, 은폐하도록 교사하거나 공모한 자는 ...",
+        "deadline": null,
+        "legalBasis": "산업안전보건법 제170조 제3호 (제57조 제1항 위반)" }
+    ]
+  },
+
+  "citedArticles": [
+    { "articleId": 1421, "lawName": "산업안전보건법", "articleNo": "제54조",
+      "clauseNo": "제1항", "title": "중대재해 발생 시 사업주의 조치",
+      "content": "① 사업주는 중대재해가 발생하였을 때에는 ...",
+      "source": "STATUTE", "score": null, "matchedTerms": null }
+  ],
+  "similarCases": [ /* 8-1 과 같은 형태 */ ],
+  "similarCaseNote": "제조업 중대재해 사례는 재해유형 분류가 아직 정리되지 않아 표시할 수 없습니다.",
+  "disclaimer": "아래 절차는 산업안전보건법상 사업주 의무를 정리한 참고 자료입니다. ..."
+}
+```
+
+### 화면 만들 때 꼭 봐주실 것 4가지
+
+**① 세 덩어리는 모양이 같습니다 — 컴포넌트 하나로 그리시면 됩니다**
+
+`legalObligations` · `administrativeSteps` · `penaltyRisk` 는 전부
+`{ guidance, items[] }` 입니다. `items[]` 는 **법령에서 뽑아 둔 목록이라 항상 채워지고**,
+`guidance` 는 AI 가 이 사고에 맞춰 쓴 설명이라 **없을 수 있습니다(null)**.
+
+```
+guidance 가 있으면 → 위에 문단으로
+items[]           → 아래에 카드/아코디언 목록 (title · detail · deadline · legalBasis)
+```
+
+| `mode` | 뜻 | 화면 |
+|---|---|---|
+| `GENERATED` | AI 설명까지 채워짐 | `guidance` + `items` |
+| `RETRIEVAL_ONLY` | AI 를 못 씀 (`note` 에 사유) | `note` 안내 + `items` |
+
+> **`RETRIEVAL_ONLY` 여도 화면이 비지 않습니다.** 이 화면은 사고 직후에 쓰이므로,
+> 모델이 없거나 무료 쿼터가 떨어져도 의무 목록과 근거 조문은 그대로 나갑니다.
+
+**② `accidentTypeCertain: false` 면 유형을 확인받아 주세요**
+
+서술에 여러 유형이 섞이면(예: "끼여서 손가락이 절단") 확정하지 않습니다.
+
+```
+"끼임 사고로 보입니다. 맞나요?  [예]  [다른 유형 선택 ▾ selectableTypes]"
+```
+사용자가 고치면 `accidentType` 에 담아 **다시 호출**하시면 됩니다. 고른 값이 추정보다 우선합니다.
+
+**③ `severity.criteria` 는 체크리스트로 보여주세요**
+
+중대재해인지는 **저희가 판정하지 않습니다.** 사망자 수·요양 기간은 글에 없을 수 있어서요.
+대신 판단 기준 3가지를 그대로 내려드리니, 사용자가 직접 대조하게 해주세요.
+
+| `level` | 뜻 |
+|---|---|
+| `FATAL` | 사망을 시사하는 표현이 있음 |
+| `SEVERE` | 입원 · 수술 · 절단 등 중한 부상 표현이 있음 |
+| `MINOR` | 경미한 부상만 언급됨 |
+| `UNKNOWN` | 판단할 단서가 없음 |
+
+`seriousAccidentLikely` 는 `MINOR` 일 때만 `false` 입니다. **모르면 켭니다** —
+중대재해인데 안내를 안 하는 쪽이 훨씬 위험하기 때문입니다.
+`false` 면 중대재해처벌법 항목이 빠져서 과잉 경고가 되지 않습니다.
+
+**④ `disclaimer` 는 반드시 노출해 주세요**
+
+법률 자문이 아니라 참고 자료라는 안내입니다.
+
+### 알아두실 점
+
+- **`citedArticles[].source`**
+  - `STATUTE` — 사고가 나면 무조건 적용되는 조문(보고 의무 · 조사표 · 벌칙)을 **조문번호로 직접** 가져온 것.
+    사고 서술에는 "조사표" 같은 말이 없어 검색으로는 안 걸리기 때문입니다.
+  - `KEYWORD` / `SEMANTIC` — 사고 내용으로 **검색해서** 찾은 조문 (6-1 과 동일)
+- **산업안전보건법 벌칙 금액은 나오지 않습니다.** 법령 데이터에 제168조 · 제170조의
+  형량 문장이 빠져 있어서, 지어내지 않고 조문만 인용합니다. 금액이 나오는 건
+  중대재해처벌법(1년 이상 징역 / 10억원 이하, 법인 50억원 이하)뿐입니다.
+- **산재보험 급여 절차는 법령 근거 없이 안내만** 합니다. 산업재해보상보험법은 저희
+  법령 데이터에 없습니다(근로복지공단 소관). 해당 항목의 `legalBasis` 는 `null` 입니다.
 
 ---
 
@@ -726,7 +889,7 @@ export interface LawSearchResponse {
 export interface LawArticle {
   articleId: number; lawName: string; articleNo: string;
   clauseNo: string | null; title: string; content: string;
-  source: 'KEYWORD' | 'SEMANTIC';
+  source: 'KEYWORD' | 'SEMANTIC' | 'STATUTE';  // STATUTE = 조문번호로 직접 가져옴
   score: number | null;        // SEMANTIC 일 때만
   matchedTerms: number | null; // KEYWORD 일 때만
 }
@@ -768,6 +931,66 @@ export interface ChatMessage {
   createdAt: string;
 }
 
+// 사고 대처 (8-2 서술 기반)
+export interface AccidentConsultRequest {
+  situation: string;          // 필수, 2000자 이내
+  industry?: string;
+  accidentType?: string;      // 사용자가 유형을 고쳤을 때만
+}
+
+export interface Duty {
+  title: string;
+  detail: string;
+  deadline: string | null;    // 법이 정한 기한
+  legalBasis: string | null;  // 법령 근거가 없는 실무 안내면 null
+}
+
+export interface GuidanceSection {
+  guidance: string | null;    // AI 설명. RETRIEVAL_ONLY 면 null
+  items: Duty[];              // 항상 채워짐
+}
+
+export interface AccidentSeverity {
+  level: 'FATAL' | 'SEVERE' | 'MINOR' | 'UNKNOWN';
+  seriousAccidentLikely: boolean;  // MINOR 일 때만 false
+  note: string;
+  criteria: string[];              // 중대재해 판단 기준 3가지
+  criteriaBasis: string;
+}
+
+export interface AccidentConsultResponse {
+  situation: string;
+  accidentType: string;
+  accidentTypeCertain: boolean;   // false 면 사용자에게 확인
+  selectableTypes: string[];
+  severity: AccidentSeverity;
+
+  mode: 'GENERATED' | 'RETRIEVAL_ONLY';
+  note: string | null;            // RETRIEVAL_ONLY 사유
+  model: string | null;
+
+  immediateActions: ImmediateAction[];
+  legalObligations: GuidanceSection;
+  administrativeSteps: GuidanceSection;
+  penaltyRisk: GuidanceSection;
+
+  citedArticles: LawArticle[];
+  similarCases: AccidentSimilarCase[];
+  similarCaseNote: string | null;
+  disclaimer: string;
+}
+
+export interface ImmediateAction {
+  step: number; title: string; description: string;
+  legalBasis: string | null; immediate: boolean;
+}
+
+export interface AccidentSimilarCase {
+  sifId: number; accidentKind: string; summary: string;
+  highRiskSituation: string | null; causalFactor: string | null;
+  countermeasures: string[];
+}
+
 // 리포트
 export interface ReportCreateResponse {
   reportId: number; status: 'PENDING' | 'GENERATING' | 'DONE' | 'FAILED';
@@ -789,13 +1012,23 @@ DB 스키마가 최신이 아니면 예방 가이드가 빈 배열로 나오거�
 
 ---
 
-## 아직 없는 API (예정)
+## 없어진 것 / 대신 들어간 것
 
-- 맞춤 채용 추천 — `ncs_code`/`risk_ncs_mapping`/`job_posting` 데이터가 아직 없습니다.
+- **맞춤 채용 추천은 만들지 않습니다.** `ncs_code`/`risk_ncs_mapping`/`job_posting`
+  데이터가 없어서 뼈대만 만들어도 화면에 보여줄 게 없습니다.
+- 대신 **8-2 사고 내용 서술 기반 대처 안내**를 넣었습니다. 사고가 났을 때
+  법적 대응 · 행정 처리까지 안내하는 화면이라, 채용 추천보다 이 서비스에 훨씬 맞습니다.
 
-## 키가 들어오면 켜지는 것
+## AI 답변 생성(`mode`)에 대해
 
-- **법령 상담 답변 생성**(7번) — 지금은 `RETRIEVAL_ONLY` 로 조문만 나옵니다.
-  `GEMINI_API_KEY` 환경변수만 넣으면 같은 API 가 답변까지 반환합니다. **프론트 수정 불필요.**
+7번(법령 상담)과 8-2(사고 대처)는 `GEMINI_API_KEY` 환경변수가 있으면 `GENERATED`,
+없으면 `RETRIEVAL_ONLY` 로 동작합니다. **둘 다 응답 구조가 같아서 프론트 수정이 필요 없습니다.**
+
+- 7번은 `RETRIEVAL_ONLY` 면 답변이 `null` 이고 조문만 나옵니다.
+- 8-2 는 `RETRIEVAL_ONLY` 여도 **의무 목록(`items`)이 그대로 나갑니다.** 사고 직후 화면이
+  비면 안 되기 때문에 목록을 법령에서 미리 뽑아 두었습니다.
+
+> 키는 저장소·설정 어디에도 없습니다. **프론트엔드에는 절대 넣지 마세요**(브라우저에 노출됩니다).
+> 자세한 규칙은 저장소 루트의 `SECURITY.md` 를 봐주세요.
 
 필요한 필드나 형태가 있으면 미리 말씀해주세요. 만들 때 반영하겠습니다.

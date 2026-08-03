@@ -33,6 +33,22 @@ public class AccidentResponseRepository {
             FROM   fn_accident_law_basis(?, ?, ?)
             """;
 
+    /**
+     * 조문번호로 조문을 그대로 가져온다.
+     *
+     * 사고 대처에서 반드시 보여야 하는 조문(보고 의무·조사표 제출·벌칙)은 검색으로는 잘 안 나온다.
+     * 사고 서술에는 "지게차", "다리"처럼 사고 자체의 어휘만 있고 "보고", "조사표"는 없기 때문이다.
+     * 그래서 이 조문들만 번호로 집어 온다.
+     *
+     * (법령명, 조문번호) 짝을 한 문자열로 이어 붙여 비교하고, 넘긴 순서를 그대로 유지한다.
+     */
+    private static final String ARTICLES_BY_NO = """
+            SELECT article_id, law_name, article_no, clause_no, title, content
+            FROM   law_article
+            WHERE  law_name || '|' || article_no = ANY(?)
+            ORDER  BY array_position(?, law_name || '|' || article_no), article_id
+            """;
+
     public record SimilarCase(
             Long sifId,
             String accidentKind,
@@ -50,6 +66,37 @@ public class AccidentResponseRepository {
             String title,
             int refItems
     ) {
+    }
+
+    public record ArticleRow(
+            Long articleId,
+            String lawName,
+            String articleNo,
+            String clauseNo,
+            String title,
+            String content
+    ) {
+    }
+
+    public List<ArticleRow> findArticlesByNo(List<String> keys) {
+        if (keys.isEmpty()) {
+            return List.of();
+        }
+        return jdbcTemplate.query(
+                connection -> {
+                    var ps = connection.prepareStatement(ARTICLES_BY_NO);
+                    ps.setArray(1, connection.createArrayOf("text", keys.toArray()));
+                    ps.setArray(2, connection.createArrayOf("text", keys.toArray()));
+                    return ps;
+                },
+                (rs, rowNum) -> new ArticleRow(
+                        rs.getLong("article_id"),
+                        rs.getString("law_name"),
+                        rs.getString("article_no"),
+                        rs.getString("clause_no"),
+                        rs.getString("title"),
+                        rs.getString("content")
+                ));
     }
 
     public List<SimilarCase> findSimilarCases(List<String> sifKinds, String industry, int limit) {

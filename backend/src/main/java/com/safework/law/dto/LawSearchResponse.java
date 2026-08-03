@@ -82,6 +82,17 @@ public class LawSearchResponse {
                     "KEYWORD", null, hit.matchedTerms());
         }
 
+        /**
+         * 조문번호로 직접 가져온 조문.
+         * 사고 대처처럼 "반드시 보여야 하는 조문"이 정해져 있는 경우, 검색 순위에 맡기지 않고
+         * 조문번호로 집어 온다. 검색 결과가 아니므로 점수·매칭어 정보가 없다.
+         */
+        public static LawArticleDto statute(Long articleId, String lawName, String articleNo,
+                                            String clauseNo, String title, String content) {
+            return new LawArticleDto(articleId, lawName, articleNo, clauseNo, title, content,
+                    "STATUTE", null, null);
+        }
+
         public static LawArticleDto of(MlServerClient.LawHit hit) {
             return new LawArticleDto(hit.articleId(), hit.lawName(), hit.articleNo(),
                     // ML 서버는 항(clause)을 따로 주지 않는다.
