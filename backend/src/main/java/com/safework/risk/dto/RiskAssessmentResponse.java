@@ -5,6 +5,8 @@ import lombok.Getter;
 
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
+import java.util.List;
+import java.util.Map;
 
 @Getter
 public class RiskAssessmentResponse {
@@ -25,6 +27,14 @@ public class RiskAssessmentResponse {
     private final String modelVersion;
     private final OffsetDateTime assessedAt;
 
+    /**
+     * ML 예측 — 어떤 재해가 날 가능성이 높은지, 얼마나 심각할지.
+     * ML 서버를 못 쓴 경우 빈 배열이며, 그때 method 는 COLDSTART 로 남는다.
+     */
+    private final List<Map<String, Object>> topRisks;
+    private final List<Map<String, Object>> severityPrediction;
+
+    @SuppressWarnings("unchecked")
     public RiskAssessmentResponse(RiskAssessment assessment) {
         this.assessmentId = assessment.getId();
         this.workplaceId = assessment.getWorkplaceId();
@@ -38,5 +48,11 @@ public class RiskAssessmentResponse {
         this.matchLevel = assessment.getMatchLevel();
         this.modelVersion = assessment.getModelVersion();
         this.assessedAt = assessment.getAssessedAt();
+
+        Map<String, Object> raw = assessment.getRawFeatures();
+        this.topRisks = raw == null ? List.of()
+                : (List<Map<String, Object>>) raw.getOrDefault("top_risks", List.of());
+        this.severityPrediction = raw == null ? List.of()
+                : (List<Map<String, Object>>) raw.getOrDefault("severity_prediction", List.of());
     }
 }

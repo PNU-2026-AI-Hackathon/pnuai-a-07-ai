@@ -201,7 +201,14 @@ POST /api/workplaces/{workplaceId}/checklist-submissions
     "checklistComponent": 22.22,
     "matchLevel": "EXACT",
     "modelVersion": "coldstart-v1",
-    "assessedAt": "2026-08-03T08:50:31.367182Z"
+    "assessedAt": "2026-08-03T08:50:31.367182Z",
+    "topRisks": [
+      { "type": "업무상질병", "probability": 0.2117, "shap_value": 0.067 },
+      { "type": "끼임", "probability": 0.1892, "shap_value": 0.041 }
+    ],
+    "severityPrediction": [
+      { "label": "6개월 이상", "probability": 0.3438 }
+    ]
   }
 }
 ```
@@ -229,8 +236,17 @@ GET /api/workplaces/{workplaceId}/risk-assessments/latest
 | `baseComponent` | 기본 점수(0~60) — 동종·동규모·동지역 재해 통계 |
 | `checklistComponent` | 체크리스트 점수(0~40) — 미비 항목 가중치 |
 | `matchLevel` | 통계 매칭 정확도 (`EXACT` / `INDUSTRY_SIZE` / `INDUSTRY` / `NONE`) |
-| `method` | `COLDSTART`(통계) / `XGBOOST`(ML) / `HYBRID` |
+| `method` | `COLDSTART`(통계만) / `HYBRID`(통계 + ML 예측) |
 | `submissionId` | 이 진단의 근거가 된 제출 |
+| `topRisks` | **ML 예측** — 어떤 재해가 날 가능성이 높은지 (`probability` 0~1) |
+| `severityPrediction` | **ML 예측** — 사고가 나면 얼마나 심각할지 (요양 기간) |
+
+> **점수와 예측은 출처가 다릅니다.**
+> `riskScore`·`riskGrade`·`baseComponent`·`checklistComponent` 는 **DB 통계 함수**가,
+> `topRisks`·`severityPrediction` 은 **ML 서버(LightGBM)** 가 만듭니다.
+>
+> ML 서버를 못 쓰면 `topRisks`/`severityPrediction` 이 **빈 배열**로 오고 `method` 는
+> `COLDSTART` 로 남습니다. 점수는 그대로 나오므로 화면이 비지는 않습니다.
 
 ### 등급 표시 참고
 
@@ -580,14 +596,19 @@ export type RiskGrade = 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
 
 export interface RiskAssessment {
   assessmentId: number; workplaceId: number; submissionId: number | null;
-  method: 'COLDSTART' | 'XGBOOST' | 'HYBRID';
+  method: 'COLDSTART' | 'HYBRID';
   riskScore: number; riskGrade: RiskGrade;
   topAccidentType: string | null;
-  baseComponent: number | null;
-  checklistComponent: number | null;
+  baseComponent: number | null;      // DB 통계
+  checklistComponent: number | null; // DB 통계
   matchLevel: string | null;
   modelVersion: string; assessedAt: string;
+  topRisks: TopRisk[];                     // ML 예측 (없으면 [])
+  severityPrediction: SeverityPrediction[]; // ML 예측 (없으면 [])
 }
+
+export interface TopRisk { type: string; probability: number; shap_value: number | null; }
+export interface SeverityPrediction { label: string; probability: number; }
 
 // 예방 가이드
 export interface PreventionGuideResponse { predictions: AccidentPrediction[]; }
