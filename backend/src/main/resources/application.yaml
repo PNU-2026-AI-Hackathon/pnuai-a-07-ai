@@ -22,6 +22,10 @@ jwt:
   access-token-expiration: ${JWT_ACCESS_TOKEN_EXPIRATION:3600000}
 
 app:
+  ml:
+    # ML 서버(FastAPI). 꺼져 있어도 백엔드는 폴백으로 동작한다.
+    base-url: ${APP_ML_BASE_URL:http://localhost:8000}
+    enabled: ${APP_ML_ENABLED:true}
   report:
     # 생성된 PDF 저장 위치 (상대경로면 프로세스 실행 디렉터리 기준)
     storage-dir: ${APP_REPORT_STORAGE_DIR:reports}

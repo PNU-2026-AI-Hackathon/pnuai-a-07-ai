@@ -71,10 +71,15 @@ public abstract class IntegrationTest {
     protected MockMvc mockMvc;
 
     @DynamicPropertySource
-    static void datasource(DynamicPropertyRegistry registry) {
+    static void testProperties(DynamicPropertyRegistry registry) {
         registry.add("spring.datasource.url", POSTGRES::getJdbcUrl);
         registry.add("spring.datasource.username", POSTGRES::getUsername);
         registry.add("spring.datasource.password", POSTGRES::getPassword);
+
+        // ML 서버를 끄고 돌린다. 켜 두면 개발자 PC 에 ML 서버가 떠 있는지에 따라
+        // 검색 결과가 달라져 테스트가 흔들린다(로컬 DB 의존성을 없앤 것과 같은 이유).
+        // ML 연동 자체는 폴백 동작으로 검증한다.
+        registry.add("app.ml.enabled", () -> false);
     }
 
     private static void loadSchemaAndFixtures() throws IOException, InterruptedException {
