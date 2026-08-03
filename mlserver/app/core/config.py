@@ -15,19 +15,15 @@ class Settings(BaseSettings):
     # sys.path에 추가해서 그대로 import — 인코딩 로직을 mlserver에 복제하지 않는다.
     ML_MODEL_SOURCE_DIR: Path = REPO_ROOT / "데이터모델링" / "ML모델"
 
-    # 참조 데이터 스냅샷 (PG 접속정보 확정 전까지 사용)
+    # 참조 데이터 스냅샷 (PG 접속정보 확정 전까지 사용: law_article/law_chunk/sif_case 등)
     REFERENCE_DATA_DIR: Path = Path(__file__).resolve().parents[1] / "data"
 
-    # PostgreSQL (ai_safework) 읽기전용 접속정보 — 아직 미확정, 값이 없으면
-    # coldstart 서비스는 자동으로 스냅샷 모드로 동작한다.
+    # PostgreSQL (ai_safework) 읽기전용 접속정보 — 아직 미확정.
     PG_HOST: str | None = None
     PG_PORT: int = 5432
     PG_DB: str | None = None
     PG_USER: str | None = None
     PG_PASSWORD: str | None = None
-
-    # True로 바뀌면 coldstart_baseline/checklist_item을 스냅샷 대신 PG에서 직접 조회한다.
-    COLDSTART_USE_LIVE_DB: bool = False
 
     OPENAI_API_KEY: str | None = None
 
