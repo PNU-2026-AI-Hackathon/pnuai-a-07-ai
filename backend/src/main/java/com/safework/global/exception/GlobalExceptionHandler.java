@@ -6,6 +6,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
@@ -27,6 +28,14 @@ public class GlobalExceptionHandler {
 
         return ResponseEntity.badRequest()
                 .body(Map.of("error", "입력값이 올바르지 않습니다.", "fields", fieldErrors));
+    }
+
+    /** 필수 쿼리 파라미터가 아예 안 온 경우. 클라이언트 오류이므로 400. */
+    @ExceptionHandler(MissingServletRequestParameterException.class)
+    public ResponseEntity<Map<String, Object>> handleMissingParam(MissingServletRequestParameterException e) {
+        return ResponseEntity.badRequest()
+                .body(Map.of("error", "입력값이 올바르지 않습니다.",
+                        "fields", Map.of(e.getParameterName(), "필수 항목입니다")));
     }
 
     /**
