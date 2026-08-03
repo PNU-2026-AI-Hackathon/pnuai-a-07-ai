@@ -1,5 +1,7 @@
 # 컨테이너 안(리눅스)에서 실행되는 파일은 CRLF 로 바뀌면 깨진다.
 # Windows 에서 체크아웃해도 LF 를 유지한다.
 *.sh        text eol=lf
+# git 훅은 확장자가 없어 위 규칙에 안 걸린다. CRLF 면 리눅스/맥에서 실행되지 않는다.
+.githooks/* text eol=lf
 Dockerfile  text eol=lf
 *.sql       text eol=lf
