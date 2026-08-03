@@ -1,5 +1,7 @@
 package com.safework.global.exception;
 
+import jakarta.validation.ConstraintViolation;
+import jakarta.validation.ConstraintViolationException;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.validation.FieldError;
@@ -25,6 +27,29 @@ public class GlobalExceptionHandler {
 
         return ResponseEntity.badRequest()
                 .body(Map.of("error", "입력값이 올바르지 않습니다.", "fields", fieldErrors));
+    }
+
+    /**
+     * @RequestParam / @PathVariable 에 붙인 제약조건(@NotBlank, @Min 등) 위반.
+     * 본문 검증과 달리 ConstraintViolationException 으로 올라와 별도 처리가 필요하다.
+     */
+    @ExceptionHandler(ConstraintViolationException.class)
+    public ResponseEntity<Map<String, Object>> handleConstraintViolation(ConstraintViolationException e) {
+        Map<String, String> fieldErrors = e.getConstraintViolations().stream()
+                .collect(Collectors.toMap(
+                        violation -> lastNode(violation.getPropertyPath().toString()),
+                        ConstraintViolation::getMessage,
+                        (first, second) -> first,
+                        LinkedHashMap::new));
+
+        return ResponseEntity.badRequest()
+                .body(Map.of("error", "입력값이 올바르지 않습니다.", "fields", fieldErrors));
+    }
+
+    /** "search.q" 처럼 메서드명이 붙어 오므로 마지막 마디만 남긴다. */
+    private String lastNode(String propertyPath) {
+        int lastDot = propertyPath.lastIndexOf('.');
+        return lastDot < 0 ? propertyPath : propertyPath.substring(lastDot + 1);
     }
 
     /**
