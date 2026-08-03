@@ -23,3 +23,4 @@ Thumbs.db
 
 # 생성된 PDF 리포트 (런타임 산출물)
 backend/reports/
+*.dump 
