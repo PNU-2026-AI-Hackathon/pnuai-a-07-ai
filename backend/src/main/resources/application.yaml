@@ -19,5 +19,14 @@ jwt:
   secret: c2FmZXdvcmthaXNlY3JldGtleWZvcmp3dHRva2VuZ2VuZXJhdGlvbjIwMjY=
   access-token-expiration: 3600000
 
+app:
+  report:
+    # 생성된 PDF 저장 위치 (상대경로면 프로세스 실행 디렉터리 기준)
+    storage-dir: reports
+    # PDF 에 임베드할 한글 TTF. 없으면 한글이 깨지므로 배포 환경에서는
+    # 재배포 가능한 폰트(나눔고딕 등)를 이미지에 넣고 경로를 바꿀 것.
+    font-path: C:/Windows/Fonts/malgun.ttf
+    font-family: ReportKorean
+
 server:
   port: 8080
