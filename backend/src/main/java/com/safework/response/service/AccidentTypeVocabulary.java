@@ -58,4 +58,21 @@ public class AccidentTypeVocabulary {
             default -> industry;
         };
     }
+
+    /**
+     * 사례가 비었을 때 프론트가 "없음"과 "아직 정리 안 됨"을 구분해 안내할 수 있게 사유를 준다.
+     * 현재 sif_case 는 건설업만 재해유형이 분류돼 있고, 제조업등 2,573건은 대책은 있으나
+     * accident_kind 가 비어 있어 유형별로 찾을 수 없다.
+     *
+     * 사례가 있으면 null 을 준다.
+     */
+    public String missingCaseReason(String industry, boolean empty) {
+        if (!empty) {
+            return null;
+        }
+        if ("제조업".equals(industry)) {
+            return "제조업 중대재해 사례는 재해유형 분류가 아직 정리되지 않아 표시할 수 없습니다.";
+        }
+        return "해당 업종·재해유형으로 정리된 중대재해 사례가 없습니다.";
+    }
 }
