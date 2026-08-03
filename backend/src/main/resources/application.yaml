@@ -1,8 +1,10 @@
+# 로컬 실행 기본값은 그대로 두고, Docker 등 다른 환경에서는 환경변수로 덮어쓴다.
+# (SPRING_DATASOURCE_URL, JWT_SECRET, APP_REPORT_STORAGE_DIR ...)
 spring:
   datasource:
-    url: jdbc:postgresql://localhost:5432/ai_safework
-    username: postgres
-    password: 1234
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/ai_safework}
+    username: ${SPRING_DATASOURCE_USERNAME:postgres}
+    password: ${SPRING_DATASOURCE_PASSWORD:1234}
     driver-class-name: org.postgresql.Driver
 
   jpa:
@@ -16,13 +18,13 @@ spring:
 
 
 jwt:
-  secret: c2FmZXdvcmthaXNlY3JldGtleWZvcmp3dHRva2VuZ2VuZXJhdGlvbjIwMjY=
-  access-token-expiration: 3600000
+  secret: ${JWT_SECRET:c2FmZXdvcmthaXNlY3JldGtleWZvcmp3dHRva2VuZ2VuZXJhdGlvbjIwMjY=}
+  access-token-expiration: ${JWT_ACCESS_TOKEN_EXPIRATION:3600000}
 
 app:
   report:
     # 생성된 PDF 저장 위치 (상대경로면 프로세스 실행 디렉터리 기준)
-    storage-dir: reports
+    storage-dir: ${APP_REPORT_STORAGE_DIR:reports}
     font:
       # 나눔고딕(OFL 1.1)을 JAR 에 번들해 두었으므로 별도 설정 없이
       # Windows/Linux/Docker 어디서든 한글이 동일하게 렌더링된다.

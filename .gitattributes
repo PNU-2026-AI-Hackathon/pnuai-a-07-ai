@@ -1,0 +1,5 @@
+# 컨테이너 안(리눅스)에서 실행되는 파일은 CRLF 로 바뀌면 깨진다.
+# Windows 에서 체크아웃해도 LF 를 유지한다.
+*.sh        text eol=lf
+Dockerfile  text eol=lf
+*.sql       text eol=lf
