@@ -316,7 +316,9 @@ const res = await fetch(`/api/prevention-guide?${qs}`, {
 
 ---
 
-# 6. 법령 검색
+# 6. 검색 (법령 · 유사 사례)
+
+## 6-1. 법령 검색
 
 ```
 GET /api/laws/search?q={질문}&size=5
@@ -334,38 +336,84 @@ GET /api/laws/search?q={질문}&size=5
 ```json
 {
   "query": "사다리에서 떨어질 것 같아요",
+  "mode": "HYBRID",
   "searchTerms": ["사다리", "떨어질", "추락", "떨어짐"],
-  "totalCount": 3,
+  "totalCount": 5,
   "results": [
-    {
-      "articleId": 1573,
-      "lawName": "산업안전보건기준에 관한 규칙",
-      "articleNo": "제42조",
-      "clauseNo": "제4항",
-      "title": "추락의 방지",
-      "content": "[산업안전보건기준에 관한 규칙 제42조(추락의 방지) 제4항]\n④ 사업주는 ...",
-      "matchedTerms": 2,
-      "titleMatched": true
-    }
+    { "articleId": 2053, "lawName": "산업안전보건기준에 관한 규칙",
+      "articleNo": "제42조", "clauseNo": "제4항", "title": "추락의 방지",
+      "content": "...", "source": "KEYWORD", "score": null, "matchedTerms": 2 },
+    { "articleId": 1573, "lawName": "산업안전보건기준에 관한 규칙",
+      "articleNo": "제24조", "clauseNo": null, "title": "사다리식 통로 등의 구조",
+      "content": "...", "source": "SEMANTIC", "score": 0.417, "matchedTerms": null }
   ]
 }
 ```
 
 | 필드 | 설명 |
 |---|---|
-| `searchTerms` | 실제 검색에 쓴 단어들 — **"왜 이 조문이 나왔는지" 화면에 보여주면 신뢰도가 올라갑니다** |
-| `lawName` + `articleNo` + `clauseNo` | **세 개를 함께 표시해야 합니다.** 같은 `제42조`라도 법령이 다르면 내용이 완전히 다릅니다 (산안법 제42조=유해위험방지계획서, 규칙 제42조=추락의 방지) |
-| `clauseNo` | 항 번호. `null` 일 수 있습니다 |
-| `content` | 조문 본문 (검색에 걸린 부분) |
-| `titleMatched` | 조문 제목에 검색어가 있었는지 — 관련도가 높다는 표시로 쓸 수 있습니다 |
+| `mode` | `HYBRID`(키워드+의미 검색) / `KEYWORD`(ML 서버를 못 쓸 때) |
+| `source` | 이 결과를 찾아낸 방식 — `KEYWORD` 또는 `SEMANTIC` |
+| `score` | 의미 검색의 유사도(0~1). 키워드 결과면 `null` |
+| `matchedTerms` | 키워드 검색에서 맞은 검색어 수. 의미 검색 결과면 `null` |
+| `searchTerms` | 키워드 검색에 쓴 단어들 — **"왜 이 조문이 나왔는지" 보여주면 신뢰도가 올라갑니다** |
+| `lawName` + `articleNo` | **함께 표시해야 합니다.** 같은 `제42조`라도 법령이 다르면 내용이 완전히 다릅니다 (산안법=유해위험방지계획서, 규칙=추락의 방지) |
+| `clauseNo` | 항 번호. **의미 검색 결과는 항을 주지 않아 `null`** 입니다 |
+
+### 검색 방식에 대해
+
+키워드 검색과 의미 검색(ML 임베딩) **결과를 섞어서** 줍니다. 실제로 비교해 보니 서로 잘하는
+질문이 달랐습니다.
+
+- `"사다리에서 떨어질 것 같아요"` → 키워드가 제42조(추락의 방지)를 정확히 찾음
+- `"안전관리자 꼭 둬야 하나요"` → 의미 검색만 제17조(안전관리자)를 찾아냄
+
+한쪽만 쓰면 다른 쪽이 잘 찾던 질문이 나빠져서 둘을 함께 씁니다.
 
 ### 알아두실 점
 
 - 결과가 0건일 수 있습니다 (`totalCount: 0`). "다른 표현으로 검색해보세요" 안내를 권합니다.
-- **아직 LLM 답변 생성은 없습니다.** 조문을 찾아주는 단계까지입니다.
-  의미 검색(임베딩)과 AI 답변은 이후 붙일 예정이라, 채팅 UI 보다는
-  "관련 법령 찾기" 형태로 만드시는 게 현재 동작과 맞습니다.
-- 키워드 기반이라 질문이 추상적이면 핵심 조문을 놓칠 수 있습니다.
+- **아직 LLM 답변 생성은 없습니다.** 관련 조문을 찾아주는 단계까지라,
+  채팅 UI 보다는 **"관련 법령 찾기"** 형태가 현재 동작과 맞습니다.
+- ML 서버가 꺼져 있으면 `mode: "KEYWORD"` 로 내려옵니다 — 서비스는 계속 동작합니다.
+
+---
+
+## 6-2. 유사 재해사례
+
+```
+GET /api/workplaces/{workplaceId}/similar-cases?size=5
+```
+
+사업장의 업종·세부업종과 비슷한 **중대재해(SIF) 사례와 재발방지 대책**을 반환합니다.
+ML 서버의 임베딩 검색을 사용합니다.
+
+**200**
+```json
+{
+  "industry": "제조업",
+  "subIndustry": "금속가공",
+  "topKeywords": ["중량물(금형)", "사출성형기"],
+  "totalCount": 3,
+  "cases": [
+    { "sifId": 308, "summary": "2019년 4월 금형공장에서 ...",
+      "countermeasures": ["크레인 후크 해지장치 설치", "중량물 취급 작업계획서 작성"],
+      "score": 0.727 }
+  ],
+  "note": null
+}
+```
+
+| 필드 | 설명 |
+|---|---|
+| `topKeywords` | 사례에서 자주 나온 위험 키워드 |
+| `countermeasures` | **배열입니다.** 원본이 한 덩어리 텍스트라 백엔드가 끊어서 전달합니다 |
+| `score` | 유사도(0~1) |
+| `note` | 결과가 비었을 때만 사유가 들어옵니다. 정상이면 `null` |
+
+> ⚠️ ML 서버가 꺼져 있거나 인덱스를 만드는 중이면 `cases: []` + `note` 로 내려옵니다.
+> 에러가 아니라 정상 응답이니, `note` 가 있으면 그대로 보여주시면 됩니다.
+> (ML 서버는 처음 뜬 뒤 인덱스를 만드는 데 몇 분 걸립니다)
 
 ---
 
@@ -440,7 +488,7 @@ GET /api/accident-response?accidentType={재해유형}&industry={업종}
 
 # 8. PDF 리포트
 
-## 6-1. 생성
+## 8-1. 생성
 
 ```
 POST /api/workplaces/{workplaceId}/reports
@@ -455,7 +503,7 @@ POST /api/workplaces/{workplaceId}/reports
   "generatedAt": "2026-08-03T17:50:31.702+09:00" }
 ```
 
-## 6-2. 다운로드
+## 8-2. 다운로드
 
 ```
 GET /api/reports/{reportId}/download
@@ -556,6 +604,36 @@ export interface PreventionChecklistItem {
   riskWeight: number; isCritical: boolean; lawBasis: string[];
 }
 
+// 법령 검색
+export interface LawSearchResponse {
+  query: string;
+  mode: 'HYBRID' | 'KEYWORD';
+  searchTerms: string[];
+  totalCount: number;
+  results: LawArticle[];
+}
+
+export interface LawArticle {
+  articleId: number; lawName: string; articleNo: string;
+  clauseNo: string | null; title: string; content: string;
+  source: 'KEYWORD' | 'SEMANTIC';
+  score: number | null;        // SEMANTIC 일 때만
+  matchedTerms: number | null; // KEYWORD 일 때만
+}
+
+// 유사 재해사례
+export interface SimilarCaseResponse {
+  industry: string; subIndustry: string | null;
+  topKeywords: string[]; totalCount: number;
+  cases: SimilarCase[];
+  note: string | null;   // 비었을 때 사유
+}
+
+export interface SimilarCase {
+  sifId: number; summary: string;
+  countermeasures: string[]; score: number | null;
+}
+
 // 리포트
 export interface ReportCreateResponse {
   reportId: number; status: 'PENDING' | 'GENERATING' | 'DONE' | 'FAILED';
@@ -579,7 +657,6 @@ DB 스키마가 최신이 아니면 예방 가이드가 빈 배열로 나오거�
 
 ## 아직 없는 API (예정)
 
-- 유사 재해사례 (ML 서버 연동 대기)
 - 법령 질문에 대한 **AI 답변 생성** — 지금은 조문 검색(6번)까지만 됩니다.
   의미 검색(임베딩)이 붙으면 검색 품질도 함께 올라갑니다.
 - 맞춤 채용 추천

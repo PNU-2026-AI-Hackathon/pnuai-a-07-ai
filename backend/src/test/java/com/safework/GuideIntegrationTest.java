@@ -68,28 +68,45 @@ class GuideIntegrationTest extends IntegrationTest {
     }
 
     @Test
-    @DisplayName("법령 검색은 일상어를 법률용어로 넓혀 찾는다")
-    void lawSearchExpandsColloquialTerms() throws Exception {
+    @DisplayName("ML 서버가 없으면 키워드 검색으로 내려가 일상어를 법률용어로 넓혀 찾는다")
+    void lawSearchFallsBackToKeyword() throws Exception {
         var result = api.getWithParams("/api/laws/search", token,
                 Map.of("q", "사다리에서 떨어질 것 같아요"));
 
         assertThat(result.getResponse().getStatus()).isEqualTo(200);
         JsonNode body = json(result);
 
+        // ML 서버를 못 쓰면 키워드 검색만으로 응답해야 한다(서비스가 죽으면 안 된다).
+        assertThat(body.get("mode").asText()).isEqualTo("KEYWORD");
         // '떨어' 를 '추락' 으로 확장하지 않으면 조문을 못 찾는다.
         assertThat(body.get("searchTerms").toString()).contains("추락");
         assertThat(body.get("results")).isNotEmpty();
         assertThat(body.get("results").get(0).get("title").asText()).contains("추락");
+        assertThat(body.get("results").get(0).get("source").asText()).isEqualTo("KEYWORD");
     }
 
     @Test
-    @DisplayName("검색 결과가 없어도 200 과 빈 배열로 답한다")
+    @DisplayName("키워드 검색은 맞는 조문이 없으면 빈 배열로 답한다")
     void lawSearchWithNoMatch() throws Exception {
         var result = api.getWithParams("/api/laws/search", token,
                 Map.of("q", "존재하지않는단어zzz"));
 
         assertThat(result.getResponse().getStatus()).isEqualTo(200);
         assertThat(json(result).get("totalCount").asInt()).isZero();
+    }
+
+    @Test
+    @DisplayName("ML 서버가 없으면 유사 재해사례는 사유와 함께 빈 결과를 준다")
+    void similarCasesUnavailableWithoutMlServer() throws Exception {
+        long workplaceId = api.createManufacturingWorkplace(token);
+
+        var result = api.getWithToken("/api/workplaces/" + workplaceId + "/similar-cases", token);
+
+        // ML 서버가 없다고 500 이 나가면 안 된다. 화면은 계속 그려져야 한다.
+        assertThat(result.getResponse().getStatus()).isEqualTo(200);
+        JsonNode body = json(result);
+        assertThat(body.get("cases")).isEmpty();
+        assertThat(body.get("note").asText()).isNotBlank();
     }
 
     @Test
