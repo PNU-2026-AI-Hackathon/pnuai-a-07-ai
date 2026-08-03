@@ -52,7 +52,9 @@ public class LawSearchService {
                 .orElse(List.of());
 
         if (semanticHits.isEmpty()) {
-            return LawSearchResponse.keywordOnly(trimmed, words, keywordHits);
+            // 키워드 검색은 항(clause)별로 행을 주므로 여기서도 조문 단위로 묶어야 한다.
+            // 안 그러면 같은 조문이 여러 번 나열돼 사용자에게는 중복으로 보인다.
+            return LawSearchResponse.keywordOnly(trimmed, words, merge(List.of(), keywordHits, size));
         }
         return LawSearchResponse.hybrid(trimmed, words, merge(semanticHits, keywordHits, size));
     }

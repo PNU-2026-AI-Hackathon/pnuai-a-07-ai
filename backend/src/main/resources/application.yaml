@@ -26,7 +26,7 @@ app:
     # 답변 생성(LLM). 키가 없으면 챗봇이 조문만 돌려주고, 검색 기능은 그대로 동작한다.
     # 키는 설정 파일에 적지 말고 환경변수로 넣을 것.
     api-key: ${GEMINI_API_KEY:}
-    model: ${APP_LLM_MODEL:gemini-2.0-flash}
+    model: ${APP_LLM_MODEL:gemini-flash-latest}
   ml:
     # ML 서버(FastAPI). 꺼져 있어도 백엔드는 폴백으로 동작한다.
     base-url: ${APP_ML_BASE_URL:http://localhost:8000}

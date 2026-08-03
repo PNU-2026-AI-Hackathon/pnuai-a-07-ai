@@ -21,8 +21,15 @@ public class LlmProperties {
 
     private String baseUrl = "https://generativelanguage.googleapis.com";
 
-    /** 무료 티어에서 쓸 수 있는 모델 */
-    private String model = "gemini-2.0-flash";
+    /**
+     * 무료 티어에서 쓸 수 있는 모델.
+     *
+     * 모델별로 프로젝트에 할당된 무료 쿼터가 다르다. 실제로 확인해 보니 신규 프로젝트에서
+     * gemini-2.0-flash 계열은 "limit: 0" 으로 아예 호출이 안 되고(429),
+     * gemini-flash-latest 는 정상 동작했다. 모델을 바꿀 때는 429 가 나지 않는지
+     * 먼저 확인할 것.
+     */
+    private String model = "gemini-flash-latest";
 
     private Duration connectTimeout = Duration.ofSeconds(3);
     private Duration readTimeout = Duration.ofSeconds(30);
