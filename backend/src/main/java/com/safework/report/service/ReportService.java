@@ -103,7 +103,7 @@ public class ReportService {
 
     private String renderHtml(Workplace workplace, RiskAssessment assessment) {
         Context context = new Context();
-        context.setVariable("fontFamily", properties.getFontFamily());
+        context.setVariable("fontFamily", properties.getFont().getFamily());
 
         context.setVariable("workplaceName", workplace.getName());
         context.setVariable("industry", workplace.getIndustry());
