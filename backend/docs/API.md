@@ -369,7 +369,76 @@ GET /api/laws/search?q={질문}&size=5
 
 ---
 
-# 7. PDF 리포트
+# 7. 사고 대처 가이드
+
+```
+GET /api/accident-response?accidentType={재해유형}&industry={업종}
+```
+
+사고가 났을 때 **무엇부터 해야 하는지**, 법적 의무는 무엇인지, 같은 유형의
+중대재해가 어떻게 났고 어떻게 막을 수 있었는지를 한 번에 반환합니다.
+
+| 쿼리 파라미터 | 필수 | 값 |
+|---|:---:|---|
+| `accidentType` | ✅ | 재해유형 — 위험도 진단의 `topAccidentType`, 예방 가이드의 `accidentType` 과 같은 어휘 |
+| `industry` | ✅ | 업종 코드값 (2번 참고) |
+
+**200**
+```json
+{
+  "accidentType": "떨어짐",
+  "industry": "건설업",
+  "disclaimer": "아래 절차는 산업안전보건법상 사업주 의무를 정리한 참고 자료입니다. ...",
+  "actions": [
+    { "step": 1, "title": "작업 중지 · 근로자 대피",
+      "description": "즉시 해당 작업을 멈추고 주변 근로자를 안전한 곳으로 대피시킵니다. ...",
+      "legalBasis": "산업안전보건법 제54조 제1항", "immediate": true },
+    { "step": 2, "title": "119 신고 · 응급처치",
+      "description": "119에 신고하고 ...", "legalBasis": null, "immediate": true }
+  ],
+  "lawBasis": [
+    { "lawName": "산업안전보건기준에 관한 규칙", "articleNo": "제42조",
+      "clauseNo": "제4항", "title": "추락의 방지", "referencedBy": 12 }
+  ],
+  "similarCases": [
+    { "sifId": 1234, "accidentKind": "추락",
+      "summary": "2019년 03월경 ○○ 현장 1층에서 피재자가 ...",
+      "highRiskSituation": "...", "causalFactor": "...",
+      "countermeasures": [
+        "추락할 위험이 있는 개구부에는 안전난간 또는 덮개 등을 ... 튼튼하게 설치",
+        "개구부 덮개를 설치할 경우 뒤집히거나 떨어지지 않도록 견고히 설치"
+      ] }
+  ],
+  "similarCaseNote": null
+}
+```
+
+| 필드 | 설명 |
+|---|---|
+| `disclaimer` | **반드시 화면에 노출해 주세요.** 법률 자문이 아니라는 안내입니다 |
+| `actions[].legalBasis` | 법정 의무면 근거 조문, 실무 단계면 `null` |
+| `actions[].immediate` | `true` = 사고 직후 즉시, `false` = 이후 처리 (탭이나 섹션을 나누면 좋습니다) |
+| `lawBasis[].referencedBy` | 이 조문을 근거로 삼는 점검항목 수 — 관련도 참고용 |
+| `similarCases[].countermeasures` | **배열입니다.** 원본이 한 덩어리 텍스트라 항목별로 끊어 드립니다 |
+| `similarCaseNote` | 사례가 비었을 때만 사유가 들어옵니다. 있으면 `null` |
+
+### ⚠️ 제조업은 현재 유사 사례가 나오지 않습니다
+
+중대재해 사례 데이터에서 **건설업 3,459건은 재해유형이 분류돼 있지만, 제조업 2,573건은
+분류가 비어 있습니다.** 그래서 제조업으로 조회하면 `similarCases` 가 빈 배열이고
+`similarCaseNote` 에 사유가 들어옵니다.
+
+```json
+{ "similarCases": [],
+  "similarCaseNote": "제조업 중대재해 사례는 재해유형 분류가 아직 정리되지 않아 표시할 수 없습니다." }
+```
+
+→ `similarCases.length === 0` 이면 `similarCaseNote` 를 그대로 보여주시면 됩니다.
+조치 절차와 근거 법령은 업종과 무관하게 정상 제공됩니다.
+
+---
+
+# 8. PDF 리포트
 
 ## 6-1. 생성
 
@@ -411,7 +480,7 @@ URL.revokeObjectURL(url);
 
 ---
 
-# 8. 에러 응답
+# 9. 에러 응답
 
 | 상태 | 상황 | 본문 |
 |---|---|---|
@@ -427,7 +496,7 @@ URL.revokeObjectURL(url);
 
 ---
 
-# 9. TypeScript 타입
+# 10. TypeScript 타입
 
 ```ts
 // 인증
@@ -496,7 +565,7 @@ export interface ReportCreateResponse {
 
 ---
 
-# 10. 로컬 실행
+# 11. 로컬 실행
 
 ```bash
 docker start safework-postgres
@@ -514,6 +583,5 @@ DB 스키마가 최신이 아니면 예방 가이드가 빈 배열로 나오거�
 - 법령 질문에 대한 **AI 답변 생성** — 지금은 조문 검색(6번)까지만 됩니다.
   의미 검색(임베딩)이 붙으면 검색 품질도 함께 올라갑니다.
 - 맞춤 채용 추천
-- 사고 대처 가이드
 
 필요한 필드나 형태가 있으면 미리 말씀해주세요. 만들 때 반영하겠습니다.
