@@ -52,6 +52,27 @@ public class MlServerClient {
     public record CaseSearchResult(List<String> topKeywords, List<SimilarCase> similarCases) {
     }
 
+    /**
+     * LightGBM 위험유형 예측.
+     * 점수(risk_score 등)는 DB 함수가 정본이라 여기서 받지 않는다 — ML 서버도 2026-08-03 에
+     * 콜드스타트 계산을 걷어내고 예측만 반환하도록 정리됐다.
+     */
+    public record RiskPrediction(List<Map<String, Object>> topRisks,
+                                 List<Map<String, Object>> severityPrediction,
+                                 String modelVersion) {
+    }
+
+    public Optional<RiskPrediction> predictRisk(String industry, String subIndustry,
+                                                String sizeClass, String region) {
+        return call("/predict/risk",
+                Map.of("industry", industry,
+                        "sub_industry", subIndustry == null ? "" : subIndustry,
+                        "size_class", sizeClass,
+                        "region", region),
+                new ParameterizedTypeReference<Map<String, Object>>() {})
+                .map(MlServerClient::toRiskPrediction);
+    }
+
     public Optional<List<LawHit>> searchLaw(String query, int topK) {
         return call("/rag/search-law", Map.of("query", query, "top_k", topK),
                 new ParameterizedTypeReference<List<Map<String, Object>>>() {})
@@ -111,6 +132,14 @@ public class MlServerClient {
                         (String) row.get("countermeasure"),
                         asDecimal(row.get("score"))))
                 .toList());
+    }
+
+    @SuppressWarnings("unchecked")
+    private static RiskPrediction toRiskPrediction(Map<String, Object> body) {
+        return new RiskPrediction(
+                (List<Map<String, Object>>) body.getOrDefault("top_risks", List.of()),
+                (List<Map<String, Object>>) body.getOrDefault("severity_prediction", List.of()),
+                (String) body.get("model_version"));
     }
 
     private static Long asLong(Object value) {

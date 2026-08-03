@@ -11,6 +11,7 @@ import com.safework.checklist.entity.ChecklistSubmission;
 import com.safework.checklist.repository.ChecklistItemRepository;
 import com.safework.checklist.repository.ChecklistResponseRepository;
 import com.safework.checklist.repository.ChecklistSubmissionRepository;
+import com.safework.ml.client.MlServerClient;
 import com.safework.risk.dto.RiskAssessmentResponse;
 import com.safework.risk.entity.RiskAssessment;
 import com.safework.risk.repository.ColdstartAssessRepository;
@@ -40,6 +41,7 @@ public class ChecklistService {
     private final MemberRepository memberRepository;
     private final ColdstartAssessRepository coldstartAssessRepository;
     private final RiskAssessmentRepository riskAssessmentRepository;
+    private final MlServerClient mlServerClient;
 
     /** 사업장 업종에 해당하는 점검 문항 목록 */
     public List<ChecklistItemResponse> getItems(Long memberId, Long workplaceId,
@@ -80,12 +82,27 @@ public class ChecklistService {
         responseRepository.saveAll(submission.getId(), rows);
 
         // fn_coldstart_assess 는 방금 저장한 제출을 읽으므로, 응답 INSERT 이후에 호출해야 한다.
+        // 점수 계산은 DB 함수가 정본이다(공식이 두 군데 있으면 어긋난다).
         Long assessmentId = coldstartAssessRepository.assess(workplaceId);
         RiskAssessment assessment = riskAssessmentRepository.findById(assessmentId)
                 .orElseThrow(() -> new IllegalStateException("위험도 진단 결과를 찾을 수 없습니다."));
 
+        attachMlPrediction(workplace, assessment);
+
         return new ChecklistSubmitResponse(submission.getId(), totalItems, answeredItems,
                 new RiskAssessmentResponse(assessment));
+    }
+
+    /**
+     * 통계 점수 위에 ML 예측(어떤 재해가 날 가능성이 높은지, 얼마나 심각할지)을 얹는다.
+     * ML 서버가 없거나 느리면 그냥 콜드스타트 결과만 남는다 — 진단 자체가 실패하면 안 된다.
+     */
+    private void attachMlPrediction(Workplace workplace, RiskAssessment assessment) {
+        mlServerClient.predictRisk(workplace.getIndustry(), workplace.getSubIndustry(),
+                        workplace.getSizeClass(), workplace.getRegion())
+                .ifPresent(prediction -> assessment.attachMlPrediction(
+                        prediction.topRisks(), prediction.severityPrediction(),
+                        prediction.modelVersion()));
     }
 
     /** 요청의 itemCode 를 실제 문항으로 바꾸고, 잘못된 코드/중복이 있으면 막는다. */

@@ -9,6 +9,8 @@ import org.hibernate.type.SqlTypes;
 
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
+import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -72,4 +74,23 @@ public class RiskAssessment {
 
     @Column(name = "assessed_at", insertable = false, updatable = false)
     private OffsetDateTime assessedAt;
+
+    /**
+     * 점수는 DB 함수(fn_coldstart_assess)가 이미 넣어 두었고, 여기에 ML 예측을 얹는다.
+     * 통계 점수와 ML 예측이 함께 들어갔으므로 method 를 HYBRID 로 올린다.
+     */
+    public void attachMlPrediction(List<Map<String, Object>> topRisks,
+                                   List<Map<String, Object>> severityPrediction,
+                                   String mlModelVersion) {
+        Map<String, Object> features = new LinkedHashMap<>();
+        if (rawFeatures != null) {
+            features.putAll(rawFeatures);
+        }
+        features.put("top_risks", topRisks);
+        features.put("severity_prediction", severityPrediction);
+        features.put("ml_model_version", mlModelVersion);
+
+        this.rawFeatures = features;
+        this.method = AssessMethod.HYBRID;
+    }
 }
