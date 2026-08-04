@@ -18,8 +18,9 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from app.services import rag_service
 
-print("법령 임베딩 인덱스 구축 시작...")
-rag_service.build_law_index()
+force = "--force" in sys.argv
+print("법령 임베딩 인덱스 구축 시작..." + (" (강제 재구축)" if force else ""))
+rag_service.build_law_index(force=force)
 print("완료!")
 
 print()

@@ -133,12 +133,14 @@ Windows에서는 **Visual C++ Redistributable x64**가 없으면 LightGBM/torch 
 - **risk_score NULL 이슈, 팩트체크됨** — DB의 2026-07-28 공지는 "NONE 매칭 시 NULL 허용"이라고 했지만, 백엔드가 실제로 확인해보니 **아직 DB에 반영 안 됨**: `risk_assessment.risk_score`/`risk_grade`는 여전히 `NOT NULL` 제약이고, `fn_coldstart_score`도 NONE 매칭이면 그냥 0으로 계산한다. 게다가 현재 4개 활성 업종은 전부 베이스라인 데이터가 있어서(132~160건씩) NONE 매칭 자체가 실질적으로 안 일어남. DB의 `ALTER TABLE ... DROP NOT NULL` + 함수 수정이 먼저 있어야 실제로 의미 있는 변경이다 — 지금은 mlserver 응답에서 이 필드 자체가 빠졌으니 나와는 무관해졌지만, 백엔드/DB 간에는 아직 미해결.
 - **method enum 태깅 자연 해소** — `/predict/risk`가 이제 순수 LightGBM 예측만 반환하니, 백엔드가 이 결과를 저장할 때 `method='LIGHTGBM'`으로 태깅하면 된다 (콜드스타트는 별도로 `method='COLDSTART'`).
 
-### 🔴 지금 막혀있는 것
-- **sub_industry 58→44 매핑** — DB가 `code_sub_industry`에 실데이터 기준 58개 원본값 스켈레톤을 만들어놨고, 내 44개 정규화 규칙을 요청함. `app/data/sub_industry_mapping_82to44.csv`로 82개(KOSHA 공식 전체 목록) 기준 매핑을 만들어서 넘길 준비는 해뒀는데, **DB의 58개가 이 82개와 문자열이 정확히 일치하는지 확인 안 됨** (전에 업종에서 가운뎃점 표기 차이 났던 것과 같은 문제가 또 있을 수 있음). DB의 58개 원본 리스트를 받아서 대조 필요.
+### 🟢 추가로 해결된 것 (2026-08-04)
+- **sub_industry 58→82 매핑 100% 일치 확인됨** — 데이터모델링 파트가 DB의 `code_sub_industry` 58개 실원본값과 내 `app/data/sub_industry_mapping_82to44.csv`(82개 KOSHA 공식 목록 기준)를 대조해서 100% 일치 확인. 표기 차이 걱정했던 게 기우로 끝남 — 추가 조치 불필요.
 
-### 🟡 다른 파트 확인 필요 (내가 답 못 함)
+### 🟡 알려진 데이터 한계 (내 코드 문제 아님, 원본 데이터 이슈)
+- **법령 벌칙 조문 일부 누락** — `law_article`의 산업안전보건법 제168조·제170조(및 제167조·제172조 일부)에서 형량("○년 이하의 징역 또는 ○원 이하의 벌금")을 명시한 첫 문장이 원본 데이터 자체에서 빠져있음(2026-08-04, 강주호 확인). `/rag/search-law`는 있는 데이터 그대로 검색하는 거라 이 문장도 검색 결과에 당연히 없음 — **원본(`law_article`) 데이터 수정이 먼저 필요, mlserver 코드로 고칠 수 있는 부분 아님.** 급하지 않음. DB가 원본 고치면 `python scripts/build_law_index.py --force`로 재구축하면 됨(스냅샷 재추출 필요).
 - **construction_amount 학습 출처** — DB가 물어본 것: `accident_case`에 없는 컬럼인데 모델이 어느 데이터로 학습했는지. 데이터모델링(학습) 담당자 확인 필요.
 - **recommended_actions 필드 추가 여부** — DB가 "스키마 락 전에 지금 정하는 게 낫다"고 권고한 전체 안건. **A안(전용 컬럼 안 만들고 백엔드가 필요 시 LLM으로 실시간 요약)으로 팀 결정됨 (2026-07-28)** — mlserver 쪽 변경 없음.
+- **`mlserver/Dockerfile` 빈 파일** — 팀이 시연 방식으로 cloudflared 터널링(A안)을 검토 중인데, A안이면 Dockerfile 자체가 불필요하고 실배포(B안)로 가면 필요함. 배포 방식이 아직 팀 전체 미정이라 결정 나기 전까지 보류.
 
 ### 아직 남은 것
 - **업종 4개(DB) vs 6개(모델)** — 여전히 미정. 매핑 테이블(`services/mappings.py`)은 6개+소규모 5개 전부 대응 가능하게 만들어둬서, 스코프가 바뀌어도 코드 수정은 필요 없음.

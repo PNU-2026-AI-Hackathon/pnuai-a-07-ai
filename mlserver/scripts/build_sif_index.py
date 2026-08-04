@@ -14,8 +14,9 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from app.services import case_service
 
-print("유사 재해사례 임베딩 인덱스 구축 시작...")
-case_service.build_sif_index()
+force = "--force" in sys.argv
+print("유사 재해사례 임베딩 인덱스 구축 시작..." + (" (강제 재구축)" if force else ""))
+case_service.build_sif_index(force=force)
 print("완료!")
 
 print()
