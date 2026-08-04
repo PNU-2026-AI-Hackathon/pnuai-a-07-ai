@@ -51,12 +51,77 @@ public final class AccidentConsultDtos {
         private final String deadline;
         /** 근거 조문. 법령 근거가 없는 실무 안내면 null */
         private final String legalBasis;
+        /** 어디에 내는지 (관할 지방고용노동관서 · 근로복지공단 …). 해당 없으면 null */
+        private final String agency;
+        /** 제출 서식 이름. 없으면 null */
+        private final String formName;
+        /** 서식 다운로드 · 신청 페이지 링크. 없으면 null */
+        private final String formUrl;
+        /** 안 지켰을 때의 과태료·벌칙. 확인된 것만 들어간다 */
+        private final String penalty;
 
+        /** 법령 조문에서 정리한 의무 — 기관·서식 정보가 없다 */
         public DutyDto(String title, String detail, String deadline, String legalBasis) {
+            this(title, detail, deadline, legalBasis, null, null, null, null);
+        }
+
+        @SuppressWarnings("checkstyle:ParameterNumber")
+        public DutyDto(String title, String detail, String deadline, String legalBasis,
+                       String agency, String formName, String formUrl, String penalty) {
             this.title = title;
             this.detail = detail;
             this.deadline = deadline;
             this.legalBasis = legalBasis;
+            this.agency = agency;
+            this.formName = formName;
+            this.formUrl = formUrl;
+            this.penalty = penalty;
+        }
+    }
+
+    /** 이 사고와 비슷한 판결. 처벌 위험을 가늠하는 데 쓴다. */
+    @Getter
+    public static class PrecedentDto {
+        private final String caseName;
+        private final String court;
+        /** 사건번호·선고일 */
+        private final String reference;
+        /** 이 사고와 어떤 점이 닮았는지 */
+        private final String relevance;
+        private final String summary;
+        private final String url;
+
+        public PrecedentDto(String caseName, String court, String reference,
+                            String relevance, String summary, String url) {
+            this.caseName = caseName;
+            this.court = court;
+            this.reference = reference;
+            this.relevance = relevance;
+            this.summary = summary;
+            this.url = url;
+        }
+    }
+
+    /** 사업주가 신청할 수 있는 지원사업. 재발방지에 쓸 수 있는 돈·컨설팅이다. */
+    @Getter
+    public static class SupportProgramDto {
+        private final String title;
+        private final String agency;
+        /** 왜 이 사업장에 해당하는지 */
+        private final String relevance;
+        private final String summary;
+        /** 신청 기한 안내 */
+        private final String deadline;
+        private final String url;
+
+        public SupportProgramDto(String title, String agency, String relevance,
+                                 String summary, String deadline, String url) {
+            this.title = title;
+            this.agency = agency;
+            this.relevance = relevance;
+            this.summary = summary;
+            this.deadline = deadline;
+            this.url = url;
         }
     }
 
@@ -127,6 +192,11 @@ public final class AccidentConsultDtos {
         private final Section administrativeSteps;
         private final Section penaltyRisk;
 
+        /** 이 사고와 비슷한 판결 (없으면 빈 배열) */
+        private final List<PrecedentDto> relatedPrecedents;
+        /** 재발방지에 쓸 수 있는 지원사업 (없으면 빈 배열) */
+        private final List<SupportProgramDto> supportPrograms;
+
         /** 위 안내의 근거가 된 조문 원문 */
         private final List<LawSearchResponse.LawArticleDto> citedArticles;
         private final List<AccidentResponseGuide.SimilarCaseDto> similarCases;
@@ -139,6 +209,8 @@ public final class AccidentConsultDtos {
                         GuidanceMode mode, String note, String model,
                         List<ImmediateActionDto> immediateActions,
                         Section legalObligations, Section administrativeSteps, Section penaltyRisk,
+                        List<PrecedentDto> relatedPrecedents,
+                        List<SupportProgramDto> supportPrograms,
                         List<LawSearchResponse.LawArticleDto> citedArticles,
                         List<AccidentResponseRepository.SimilarCase> similarCases,
                         String similarCaseNote, String disclaimer) {
@@ -154,6 +226,8 @@ public final class AccidentConsultDtos {
             this.legalObligations = legalObligations;
             this.administrativeSteps = administrativeSteps;
             this.penaltyRisk = penaltyRisk;
+            this.relatedPrecedents = relatedPrecedents;
+            this.supportPrograms = supportPrograms;
             this.citedArticles = citedArticles;
             this.similarCases = similarCases.stream()
                     .map(AccidentResponseGuide.SimilarCaseDto::new)

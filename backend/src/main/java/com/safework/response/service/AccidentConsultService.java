@@ -4,12 +4,14 @@ import com.safework.law.dto.LawSearchResponse;
 import com.safework.law.dto.LawSearchResponse.LawArticleDto;
 import com.safework.law.service.LawSearchService;
 import com.safework.llm.LlmClient;
+import com.safework.response.dto.AccidentConsultDtos;
 import com.safework.response.dto.AccidentConsultDtos.DutyDto;
 import com.safework.response.dto.AccidentConsultDtos.GuidanceMode;
 import com.safework.response.dto.AccidentConsultDtos.Request;
 import com.safework.response.dto.AccidentConsultDtos.Response;
 import com.safework.response.dto.AccidentConsultDtos.Section;
 import com.safework.response.dto.AccidentConsultDtos.SeverityDto;
+import com.safework.response.repository.AccidentAdviceRepository;
 import com.safework.response.repository.AccidentResponseRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -54,6 +56,8 @@ public class AccidentConsultService {
     private static final int MAX_CLAUSES_PER_ARTICLE = 4;
     private static final int MAX_CITED_ARTICLES = 24;
 
+    private static final int SUPPORT_PROGRAM_LIMIT = 5;
+
     private static final String NO_LLM_NOTE =
             "답변 생성 모델이 설정되지 않아 법령에서 정리한 의무 목록과 근거 조문만 보여드립니다.";
     private static final String NO_ANSWER_NOTE =
@@ -73,6 +77,7 @@ public class AccidentConsultService {
     private final AccidentConsultPromptBuilder promptBuilder;
     private final AccidentTypeVocabulary vocabulary;
     private final AccidentResponseRepository repository;
+    private final AccidentAdviceRepository adviceRepository;
     private final LawSearchService lawSearchService;
     private final LlmClient llmClient;
 
@@ -91,12 +96,18 @@ public class AccidentConsultService {
         boolean seriousLikely = isSeriousLikely(classified.severity());
 
         List<DutyDto> legalDuties = dutyCatalog.legalDuties(seriousLikely);
-        List<DutyDto> adminSteps = dutyCatalog.administrativeSteps();
+        // 행정 절차는 DB(admin_procedure)에서 가져온다. 서식 링크·담당 기관·과태료 금액이
+        // 거기에만 있어서, 손으로 적어 둔 목록보다 사장님이 실제로 쓸 수 있는 정보가 많다.
+        List<DutyDto> adminSteps = toDuties(adviceRepository.findProcedures(seriousLikely));
         List<DutyDto> penalties = dutyCatalog.penalties(seriousLikely);
 
         List<LawArticleDto> articles = collectArticles(situation, seriousLikely);
         String industry = trimToNull(request.getIndustry());
         List<AccidentResponseRepository.SimilarCase> cases = findSimilarCases(accidentType, industry);
+
+        String industryKey = industry == null ? "" : industry;
+        var precedents = adviceRepository.findPrecedents(industryKey, accidentType, seriousLikely);
+        var programs = adviceRepository.findSupportPrograms(industryKey, SUPPORT_PROGRAM_LIMIT);
 
         Map<String, String> guidance = generate(situation, accidentType, classified.severity(),
                 legalDuties, adminSteps, penalties, articles);
@@ -114,8 +125,45 @@ public class AccidentConsultService {
                 new Section(guidance.get(AccidentConsultPromptBuilder.LEGAL), legalDuties),
                 new Section(guidance.get(AccidentConsultPromptBuilder.ADMINISTRATIVE), adminSteps),
                 new Section(guidance.get(AccidentConsultPromptBuilder.PENALTY), penalties),
+                toPrecedents(precedents), toSupportPrograms(programs),
                 articles, cases, vocabulary.missingCaseReason(industry, cases.isEmpty()),
                 ImmediateActionCatalog.DISCLAIMER);
+    }
+
+    private List<DutyDto> toDuties(List<AccidentAdviceRepository.Procedure> procedures) {
+        return procedures.stream()
+                .map(p -> new DutyDto(p.title(), p.actionSummary(), p.deadline(), p.legalBasis(),
+                        // 기관이 '-' 로 들어 있는 행이 있다. 화면에 그대로 찍히지 않게 비운다.
+                        blankIfDash(p.agency()), p.formName(), p.formUrl(), p.penalty()))
+                .toList();
+    }
+
+    private List<AccidentConsultDtos.PrecedentDto> toPrecedents(
+            List<AccidentAdviceRepository.Precedent> precedents) {
+        return precedents.stream()
+                .map(p -> new AccidentConsultDtos.PrecedentDto(p.caseName(), p.court(),
+                        trimToNull(p.reference()), p.relevance(), p.summary(), p.url()))
+                .toList();
+    }
+
+    private List<AccidentConsultDtos.SupportProgramDto> toSupportPrograms(
+            List<AccidentAdviceRepository.Program> programs) {
+        return programs.stream()
+                .map(p -> new AccidentConsultDtos.SupportProgramDto(p.title(), p.agency(),
+                        p.industryMatch() ? "이 업종을 대상으로 하는 지원사업입니다" : "사업주 지원사업",
+                        summaryOf(p), trimToNull(p.deadline()), p.url()))
+                .toList();
+    }
+
+    /** 지원 형태(융자·컨설팅)가 앞에 붙어야 사장님이 "돈인지 서비스인지"를 바로 안다. */
+    private String summaryOf(AccidentAdviceRepository.Program program) {
+        String type = program.supportType();
+        String summary = program.summary() == null ? "" : program.summary();
+        return type == null || type.isBlank() ? summary : type + " · " + summary;
+    }
+
+    private String blankIfDash(String value) {
+        return value == null || "-".equals(value.trim()) ? null : value;
     }
 
     /**

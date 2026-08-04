@@ -131,18 +131,58 @@ class GuideIntegrationTest extends IntegrationTest {
     }
 
     @Test
-    @DisplayName("사례가 없으면 그 사유를 함께 알려준다")
-    void accidentResponseExplainsMissingCases() throws Exception {
-        // 픽스처에 제조업 SIF 사례를 넣지 않았다(실제 DB 도 분류가 비어 있음).
+    @DisplayName("제조업도 유사 사례가 나온다 (2026-08-04 덤프에서 재해유형이 채워짐)")
+    void accidentResponseFindsManufacturingCases() throws Exception {
+        // 오래 비어 있던 제조업등 2,573건의 accident_kind 가 모두 채워졌다.
+        // 업종 어휘(제조업 → 제조업등) 매핑이 살아 있어야 사례가 붙는다.
         var result = api.getWithParams("/api/accident-response", token,
                 Map.of("accidentType", "끼임", "industry", "제조업"));
 
         assertThat(result.getResponse().getStatus()).isEqualTo(200);
         JsonNode body = json(result);
+        assertThat(body.get("similarCases")).isNotEmpty();
+        assertThat(body.get("similarCaseNote").isNull()).isTrue();
+    }
+
+    @Test
+    @DisplayName("사례가 없는 업종은 그 사유를 함께 알려준다")
+    void accidentResponseExplainsMissingCases() throws Exception {
+        // sif_case 에는 건설업·제조업등 두 업종만 있다.
+        var result = api.getWithParams("/api/accident-response", token,
+                Map.of("accidentType", "끼임", "industry", "도소매업"));
+
+        assertThat(result.getResponse().getStatus()).isEqualTo(200);
+        JsonNode body = json(result);
         assertThat(body.get("similarCases")).isEmpty();
-        assertThat(body.get("similarCaseNote").asText()).isNotBlank();
-        // 사례가 없어도 조치 절차와 근거 법령은 제공돼야 한다.
+        assertThat(body.get("similarCaseNote").asText()).contains("건설업·제조업");
+        // 사례가 없어도 조치 절차는 제공돼야 한다.
         assertThat(body.get("actions")).isNotEmpty();
+    }
+
+    @Test
+    @DisplayName("코드값 API 가 셀렉트박스에 필요한 값을 한 번에 준다")
+    void referencesReturnAllCodeValues() throws Exception {
+        var result = api.getWithToken("/api/references", token);
+
+        assertThat(result.getResponse().getStatus()).isEqualTo(200);
+        JsonNode body = json(result);
+
+        // 프론트가 값을 하드코딩하지 않도록 DB 의 v_ref_* 뷰를 그대로 내보낸다.
+        assertThat(body.get("industries")).isNotEmpty();
+        assertThat(body.get("sizeClasses")).isNotEmpty();
+        assertThat(body.get("regions")).isNotEmpty();
+        assertThat(body.get("accidentTypes")).isNotEmpty();
+
+        // 사업장 등록에 쓰는 값이라, 실제로 등록에 통과하는 코드여야 한다.
+        assertThat(body.get("industries").toString()).contains("제조업");
+        assertThat(body.get("accidentTypes").toString()).contains("끼임");
+
+        JsonNode sizeClass = body.get("sizeClasses").get(0);
+        assertThat(sizeClass.has("code")).isTrue();
+        // ML 모델은 규모 9종을 쓰는데 DB 는 10종이라 매핑값을 함께 준다.
+        assertThat(sizeClass.has("modelSizeClass")).isTrue();
+        // 셀렉트박스 순서를 프론트가 다시 정하지 않아도 되게 정렬해서 준다.
+        assertThat(sizeClass.has("sortOrder")).isTrue();
     }
 
     @Test

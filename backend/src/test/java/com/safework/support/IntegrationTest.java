@@ -46,6 +46,13 @@ public abstract class IntegrationTest {
             // (실제로 빠져 있어서 "NOT NULL 이다"라고 잘못 판단한 적이 있다)
             "SCHEMA_8_apicontract.sql",
             "SCHEMA_9_checklist_v2.sql",    // work_type, evidence_cases 컬럼
+            // 사고 후 행정 절차·판례·지원정책. SCHEMA_10 은 admin_procedure 7건을 직접 넣고,
+            // 11~13 은 빈 테이블만 만든다(데이터는 덤프에서 온다 → 픽스처로 대체).
+            "SCHEMA_10_admin.sql",
+            "SCHEMA_11_policy.sql",
+            "SCHEMA_12_precedent.sql",
+            "SCHEMA_13_adminrule.sql",
+            "SCHEMA_14_roadmap.sql",       // fn_accident_advice, fn_post_accident_roadmap
             "SCHEMA_15_predict.sql",        // accident_type_dist, fn_predict_accidents
             "SCHEMA_16a_checklist_sif_pre.sql",
             "SCHEMA_16b_checklist_sif_post.sql",
