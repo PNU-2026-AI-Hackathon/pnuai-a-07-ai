@@ -113,8 +113,13 @@ public class ReportService {
         context.setVariable("employeeCount", workplace.getEmployeeCount());
         context.setVariable("address", workplace.getAddress());
 
-        context.setVariable("riskScore", assessment.getRiskScore().stripTrailingZeros().toPlainString());
-        context.setVariable("riskGrade", assessment.getRiskGrade().name());
+        // SCHEMA_8 이후 점수·등급은 NULL 일 수 있다(베이스라인 매칭 NONE).
+        // 리포트는 점수 말고도 미비 항목·근거 법령을 담고 있어서, 점수가 없다고
+        // PDF 생성을 실패시키는 것보다 "산출 불가"로 찍는 편이 낫다.
+        context.setVariable("riskScore", assessment.getRiskScore() == null
+                ? "-" : assessment.getRiskScore().stripTrailingZeros().toPlainString());
+        context.setVariable("riskGrade", assessment.getRiskGrade() == null
+                ? "UNKNOWN" : assessment.getRiskGrade().name());
         context.setVariable("riskGradeLabel", gradeLabel(assessment.getRiskGrade()));
         context.setVariable("topAccidentType", assessment.getTopAccidentType());
         context.setVariable("methodLabel", methodLabel(assessment));
@@ -172,6 +177,9 @@ public class ReportService {
     }
 
     private String gradeLabel(RiskGrade grade) {
+        if (grade == null) {
+            return "산출 불가";
+        }
         return switch (grade) {
             case CRITICAL -> "매우 위험";
             case HIGH -> "위험";
