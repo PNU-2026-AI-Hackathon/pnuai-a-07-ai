@@ -6,6 +6,8 @@ import com.safework.support.IntegrationTest;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.jdbc.core.JdbcTemplate;
 
 import java.util.List;
 import java.util.Map;
@@ -20,6 +22,9 @@ import static org.assertj.core.api.Assertions.assertThat;
 @DisplayName("안전관리 핵심 흐름")
 class SafetyFlowIntegrationTest extends IntegrationTest {
 
+    @Autowired
+    private JdbcTemplate jdbcTemplate;
+
     private ApiClient api;
     private String token;
 
@@ -27,6 +32,36 @@ class SafetyFlowIntegrationTest extends IntegrationTest {
     void setUp() throws Exception {
         api = new ApiClient(mockMvc);
         token = api.registerAndGetToken("flow-" + System.nanoTime() + "@test.local");
+    }
+
+    @Test
+    @DisplayName("점수·등급이 NULL 이어도 조회와 PDF 가 죽지 않는다")
+    void handlesNullScoreAndGrade() throws Exception {
+        long workplaceId = api.createManufacturingWorkplace(token);
+        JsonNode items = json(api.getWithToken(
+                "/api/workplaces/" + workplaceId + "/checklist-items", token));
+        api.postJson("/api/workplaces/" + workplaceId + "/checklist-submissions", token,
+                Map.of("responses", List.of(
+                        Map.of("itemCode", items.get(0).get("itemCode").asText(), "answer", "NO"))));
+
+        // SCHEMA_8 이 두 컬럼의 NOT NULL 을 풀었다(베이스라인 매칭이 NONE 인 경우).
+        // 지금 데이터로는 NONE 이 안 생기지만, 생겼을 때 화면과 PDF 가 500 으로
+        // 죽지 않는지는 확인해 둬야 한다.
+        jdbcTemplate.update("UPDATE risk_assessment SET risk_score = NULL, risk_grade = NULL "
+                + "WHERE workplace_id = ?", workplaceId);
+
+        var latest = api.getWithToken(
+                "/api/workplaces/" + workplaceId + "/risk-assessments/latest", token);
+        assertThat(latest.getResponse().getStatus()).isEqualTo(200);
+        JsonNode body = json(latest);
+        assertThat(body.get("riskScore").isNull()).isTrue();
+        assertThat(body.get("riskGrade").isNull()).isTrue();
+        // 점수가 없어도 나머지 정보는 그대로 나와야 한다.
+        assertThat(body.get("assessmentId").asLong()).isPositive();
+
+        var created = api.postJson("/api/workplaces/" + workplaceId + "/reports", token, Map.of());
+        assertThat(created.getResponse().getStatus()).isEqualTo(201);
+        assertThat(json(created).get("status").asText()).isEqualTo("DONE");
     }
 
     @Test

@@ -166,6 +166,14 @@ public class AccidentConsultPromptBuilder {
             if (duty.getDeadline() != null) {
                 prompt.append(" [기한: ").append(duty.getDeadline()).append(']');
             }
+            if (duty.getAgency() != null) {
+                prompt.append(" [기관: ").append(duty.getAgency()).append(']');
+            }
+            // 과태료 금액은 법령 본문이 아니라 admin_procedure 에만 있다.
+            // 여기서 넣어 줘야 모델이 지어내지 않고 정확한 금액을 말할 수 있다.
+            if (duty.getPenalty() != null) {
+                prompt.append(" [위반 시: ").append(duty.getPenalty()).append(']');
+            }
             if (duty.getLegalBasis() != null) {
                 prompt.append(" (").append(duty.getLegalBasis()).append(')');
             }

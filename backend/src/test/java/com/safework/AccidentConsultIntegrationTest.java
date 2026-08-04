@@ -193,6 +193,78 @@ class AccidentConsultIntegrationTest extends IntegrationTest {
     }
 
     @Test
+    @DisplayName("행정 절차는 서식 링크 · 담당 기관 · 과태료 금액까지 준다")
+    void administrativeStepsCarryFormAndPenalty() throws Exception {
+        JsonNode section = consult("직원이 프레스에 손이 끼여 절단됐습니다. 입원했습니다.")
+                .get("administrativeSteps");
+
+        String all = section.get("items").toString();
+        // 손으로 적어 둔 목록에는 없던 것들이다. admin_procedure 에서 온다.
+        assertThat(all).contains("산업재해조사표");
+        assertThat(all).contains("발생일부터 1개월 이내");
+        assertThat(all).contains("관할 지방고용노동관서");
+        assertThat(all).contains("moel.go.kr");          // 서식 다운로드 링크
+        assertThat(all).contains("과태료");              // 위반 시 금액
+
+        // 기관이 '-' 인 행은 화면에 그대로 찍히면 안 된다.
+        for (JsonNode item : section.get("items")) {
+            if (!item.get("agency").isNull()) {
+                assertThat(item.get("agency").asText()).isNotEqualTo("-");
+            }
+        }
+    }
+
+    @Test
+    @DisplayName("중대재해가 아니면 중대재해 전용 절차는 빠진다")
+    void minorAccidentDropsSevereOnlyProcedures() throws Exception {
+        String severe = consult("직원이 지게차에 깔려 사망했습니다.")
+                .get("administrativeSteps").get("items").toString();
+        String minor = consult("직원이 넘어져 무릎에 찰과상을 입었습니다. 연고만 발랐습니다.")
+                .get("administrativeSteps").get("items").toString();
+
+        assertThat(severe).contains("작업 중지");
+        // 경미한 사고에 "즉시 작업을 중지하라"가 나오면 과잉 안내가 된다.
+        assertThat(minor).doesNotContain("작업 중지");
+        // 조사표 제출은 중대재해가 아니어도 해당될 수 있으므로 남아야 한다.
+        assertThat(minor).contains("산업재해조사표");
+    }
+
+    @Test
+    @DisplayName("이 사고와 닮은 판례와 신청 가능한 지원사업을 함께 준다")
+    void givesPrecedentsAndSupportPrograms() throws Exception {
+        Map<String, Object> body = new HashMap<>();
+        body.put("situation", "프레스에 손이 끼여서 근로자가 사망했습니다.");
+        body.put("industry", "제조업");
+        JsonNode result = json(api.postJson("/api/accident-response/consult", token, body));
+
+        JsonNode precedents = result.get("relatedPrecedents");
+        assertThat(precedents).isNotEmpty();
+        assertThat(precedents.get(0).get("court").asText()).isNotBlank();
+        assertThat(precedents.get(0).get("url").asText()).startsWith("http");
+
+        JsonNode programs = result.get("supportPrograms");
+        assertThat(programs).isNotEmpty();
+        assertThat(programs.get(0).get("agency").asText()).isNotBlank();
+        assertThat(programs.get(0).get("url").asText()).startsWith("http");
+
+        // 제목에 '예방' 이 들어가는 농업 지원사업이 공장 사망사고 안내에 섞이면 안 된다.
+        // (실제 데이터에 "사과 기상 재해예방"이 있어서 분야로 걸러 낸다)
+        assertThat(programs.toString()).doesNotContain("사과");
+    }
+
+    @Test
+    @DisplayName("프롬프트에 과태료 금액이 들어가 모델이 지어내지 않아도 된다")
+    void promptCarriesPenaltyAmounts() throws Exception {
+        ANSWER.set(WELL_FORMED_ANSWER);
+
+        consult("직원이 지게차에 깔려 사망했습니다.");
+
+        // 금액은 법령 본문이 아니라 admin_procedure 에만 있다.
+        // 프롬프트에 넣어 주지 않으면 모델이 "자료에 없다"고 하거나 지어낸다.
+        assertThat(LAST_USER_PROMPT.get()).contains("위반 시:").contains("과태료");
+    }
+
+    @Test
     @DisplayName("검색으로는 안 걸리는 보고 · 조사표 조문을 번호로 집어 온다")
     void anchorsReportingArticles() throws Exception {
         JsonNode cited = consult("직원이 프레스에 손이 끼여 절단됐습니다.").get("citedArticles");

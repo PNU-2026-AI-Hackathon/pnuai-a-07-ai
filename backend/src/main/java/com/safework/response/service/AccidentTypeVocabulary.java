@@ -23,7 +23,11 @@ public class AccidentTypeVocabulary {
             Map.entry("넘어짐", List.of("전도")),
             Map.entry("무너짐", List.of("붕괴")),
             Map.entry("물체에맞음", List.of("낙하")),
+            // 끼임과 깔림은 눌리는 사고라는 점이 같아 사례를 함께 보여주는 편이 도움이 된다.
             Map.entry("끼임", List.of("끼임", "깔림")),
+            // 코드값은 '깔림.뒤집힘' 인데 sif_case 는 '깔림'·'전도' 로 나뉘어 있다.
+            // 매핑을 빼먹으면 '깔림.뒤집힘' 을 그대로 찾다가 사례가 하나도 안 나온다.
+            Map.entry("깔림.뒤집힘", List.of("깔림", "전도")),
             Map.entry("부딪힘", List.of("부딪힘")),
             Map.entry("감전", List.of("감전")),
             Map.entry("빠짐익사", List.of("익사")),
@@ -60,19 +64,24 @@ public class AccidentTypeVocabulary {
     }
 
     /**
-     * 사례가 비었을 때 프론트가 "없음"과 "아직 정리 안 됨"을 구분해 안내할 수 있게 사유를 준다.
-     * 현재 sif_case 는 건설업만 재해유형이 분류돼 있고, 제조업등 2,573건은 대책은 있으나
-     * accident_kind 가 비어 있어 유형별로 찾을 수 없다.
+     * 사례가 비었을 때 프론트가 사유를 안내할 수 있게 문구를 준다. 사례가 있으면 null.
      *
-     * 사례가 있으면 null 을 준다.
+     * 2026-08-04 덤프에서 제조업등 2,573건의 재해유형이 모두 채워져, 예전에 있던
+     * "제조업은 분류가 안 돼 있어 표시할 수 없습니다" 안내는 더 이상 필요 없다.
+     * sif_case 에 있는 업종은 건설업·제조업등 둘뿐이라 그 밖의 업종은 여전히 비어 나온다.
      */
     public String missingCaseReason(String industry, boolean empty) {
         if (!empty) {
             return null;
         }
-        if ("제조업".equals(industry)) {
-            return "제조업 중대재해 사례는 재해유형 분류가 아직 정리되지 않아 표시할 수 없습니다.";
+        String sifIndustry = toSifIndustry(industry);
+        if (sifIndustry != null && !SIF_INDUSTRIES.contains(sifIndustry)) {
+            return "중대재해 사례는 건설업·제조업만 정리되어 있어 "
+                    + industry + " 사례는 표시할 수 없습니다.";
         }
         return "해당 업종·재해유형으로 정리된 중대재해 사례가 없습니다.";
     }
+
+    /** sif_case.industry_div 에 실제로 존재하는 값 */
+    private static final List<String> SIF_INDUSTRIES = List.of("건설업", "제조업등");
 }

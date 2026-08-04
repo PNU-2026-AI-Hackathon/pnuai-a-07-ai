@@ -41,7 +41,10 @@ public class RiskAssessmentResponse {
         this.submissionId = assessment.getSubmissionId();
         this.method = assessment.getMethod().name();
         this.riskScore = assessment.getRiskScore();
-        this.riskGrade = assessment.getRiskGrade().name();
+        // SCHEMA_8 이후 두 컬럼은 NULL 을 허용한다(베이스라인 매칭이 NONE 인 경우).
+        // 지금 데이터로는 NONE 이 안 생기지만, 생기면 화면이 500 으로 죽는 대신
+        // 점수 없이 나머지 정보라도 보여줄 수 있어야 한다.
+        this.riskGrade = assessment.getRiskGrade() == null ? null : assessment.getRiskGrade().name();
         this.topAccidentType = assessment.getTopAccidentType();
         this.baseComponent = assessment.getBaseComponent();
         this.checklistComponent = assessment.getChecklistComponent();
