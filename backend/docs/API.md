@@ -533,7 +533,7 @@ POST /api/chat/sessions/{sessionId}/messages
   "answer": "안전난간을 설치하셔야 합니다. ... (산업안전보건기준에 관한 규칙 제42조)",
   "citedArticles": [ { "articleNo": "제42조", "title": "추락의 방지", "...": "..." } ],
   "note": null,
-  "modelName": "gemini-2.0-flash"
+  "modelName": "gemini-flash-lite-latest"
 }
 ```
 
@@ -571,7 +571,7 @@ GET /api/chat/sessions/{sessionId}/messages
   { "messageId": 1, "role": "USER", "content": "사다리에서...",
     "citedArticles": [], "modelName": null, "createdAt": "..." },
   { "messageId": 2, "role": "ASSISTANT", "content": "안전난간을...",
-    "citedArticles": [2053, 1573], "modelName": "gemini-2.0-flash", "createdAt": "..." }
+    "citedArticles": [2053, 1573], "modelName": "gemini-flash-lite-latest", "createdAt": "..." }
 ]
 ```
 
@@ -697,7 +697,7 @@ POST /api/accident-response/consult
 
   "mode": "GENERATED",
   "note": null,
-  "model": "gemini-flash-latest",
+  "model": "gemini-flash-lite-latest",
 
   "immediateActions": [ /* 8-1 의 actions 와 같은 형태 */ ],
 
@@ -1121,6 +1121,15 @@ DB 스키마가 최신이 아니면 예방 가이드가 빈 배열로 나오거�
 - 7번은 `RETRIEVAL_ONLY` 면 답변이 `null` 이고 조문만 나옵니다.
 - 8-2 는 `RETRIEVAL_ONLY` 여도 **의무 목록(`items`)이 그대로 나갑니다.** 사고 직후 화면이
   비면 안 되기 때문에 목록을 법령에서 미리 뽑아 두었습니다.
+
+> ### ⚠️ 무료 티어에는 **하루 호출 수 제한**이 있습니다
+>
+> 소진되면 그날은 계속 `RETRIEVAL_ONLY` 로 나옵니다(자정에 초기화). 개발 중 화면을
+> 반복해서 새로고침하면 금방 닳으니, **`RETRIEVAL_ONLY` 화면도 반드시 만들어 두세요.**
+> 이건 예외 상황이 아니라 **평상시에도 나올 수 있는 정상 응답**입니다.
+>
+> 8-2(사고 대처)는 이 경우에도 의무 목록·근거 조문·판례·지원사업이 그대로 나갑니다.
+> 7번(법령 상담)은 답변이 `null` 이고 조문만 나갑니다.
 
 > 키는 저장소·설정 어디에도 없습니다. **프론트엔드에는 절대 넣지 마세요**(브라우저에 노출됩니다).
 > 자세한 규칙은 저장소 루트의 `SECURITY.md` 를 봐주세요.
