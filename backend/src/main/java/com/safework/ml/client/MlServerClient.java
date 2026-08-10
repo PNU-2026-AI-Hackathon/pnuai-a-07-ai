@@ -1,6 +1,7 @@
 package com.safework.ml.client;
 
 import com.safework.ml.config.MlServerProperties;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.http.MediaType;
@@ -9,6 +10,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
 
 import java.math.BigDecimal;
+import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -27,8 +29,11 @@ public class MlServerClient {
     private final RestClient restClient;
     private final MlServerProperties properties;
 
-    public MlServerClient(MlServerProperties properties) {
+    private final ObjectMapper objectMapper;
+
+    public MlServerClient(MlServerProperties properties, ObjectMapper objectMapper) {
         this.properties = properties;
+        this.objectMapper = objectMapper;
 
         SimpleClientHttpRequestFactory requestFactory = new SimpleClientHttpRequestFactory();
         requestFactory.setConnectTimeout(properties.getConnectTimeout());
@@ -93,18 +98,40 @@ public class MlServerClient {
             return Optional.empty();
         }
         try {
-            return Optional.ofNullable(restClient.post()
+            // 본문을 바이트로 받아 UTF-8 로 직접 읽는다.
+            // Map 으로 바로 받으면 응답 Content-Type 이 조금만 달라도(octet-stream 등)
+            // 변환기를 못 찾아 통째로 실패한다. 실제로 /predict/risk 가 그렇게 깨졌다.
+            byte[] raw = restClient.post()
                     .uri(path)
                     .contentType(MediaType.APPLICATION_JSON)
+                    .accept(MediaType.APPLICATION_JSON)
                     .body(body)
                     .retrieve()
-                    .body(type));
+                    .body(byte[].class);
+
+            if (raw == null || raw.length == 0) {
+                return Optional.empty();
+            }
+            return Optional.ofNullable(objectMapper.readValue(new String(raw, StandardCharsets.UTF_8),
+                    objectMapper.getTypeFactory().constructType(type.getType())));
+
         } catch (Exception e) {
             // ML 서버가 꺼져 있거나 인덱스를 만드는 중일 수 있다. 서비스는 계속돼야 하므로
             // 실패를 삼키되, 폴백으로 동작 중이라는 사실은 남긴다.
-            log.warn("ML 서버 호출 실패({}): {}. 폴백으로 처리합니다.", path, e.getMessage());
+            // 근본 원인까지 남긴다 — RestClient 가 "Error while extracting response ..." 로
+            // 감싸 버려서 겉 메시지만으로는 무엇이 문제인지 알 수 없다.
+            log.warn("ML 서버 호출 실패({}): {} (원인: {}). 폴백으로 처리합니다.",
+                    path, e.getMessage(), rootCauseOf(e));
             return Optional.empty();
         }
+    }
+
+    private String rootCauseOf(Throwable e) {
+        Throwable cause = e;
+        while (cause.getCause() != null && cause.getCause() != cause) {
+            cause = cause.getCause();
+        }
+        return cause.getClass().getSimpleName() + ": " + cause.getMessage();
     }
 
     @SuppressWarnings("unchecked")
