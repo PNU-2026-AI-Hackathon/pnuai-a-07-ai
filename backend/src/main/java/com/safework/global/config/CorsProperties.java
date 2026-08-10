@@ -35,7 +35,11 @@ public class CorsProperties {
             "http://localhost:5173",
             "http://127.0.0.1:5173",
             "https://pnu-2026-ai-hackathon.github.io",
-            "https://*.trycloudflare.com");
+            // 시연·연동용 터널. 프론트가 여기로 백엔드를 부르는 게 아니라, 프론트 자체를
+            // 터널로 열었을 때 그 주소가 출처가 되는 경우를 위한 것이다.
+            "https://*.trycloudflare.com",
+            "https://*.ngrok-free.dev",
+            "https://*.ngrok-free.app");
 
     /** 브라우저가 preflight 결과를 재사용할 시간(초). 매 요청마다 OPTIONS 를 보내지 않게 한다. */
     private long maxAge = 3600;
