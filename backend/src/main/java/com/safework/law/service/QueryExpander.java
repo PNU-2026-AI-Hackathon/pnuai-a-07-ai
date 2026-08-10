@@ -3,6 +3,7 @@ package com.safework.law.service;
 import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -37,22 +38,29 @@ public class QueryExpander {
             Map.entry("붕괴", List.of("붕괴", "무너짐")),
             Map.entry("부딪", List.of("부딪힘", "충돌")),
             Map.entry("충돌", List.of("충돌", "부딪힘")),
-            Map.entry("맞", List.of("낙하", "비래", "물체")),
+            // "맞" 한 글자로 두면 "알맞은"·"맞춤" 같은 말에도 걸린다.
+            Map.entry("맞았", List.of("낙하", "비래", "물체")),
+            Map.entry("맞아", List.of("낙하", "비래", "물체")),
             Map.entry("낙하", List.of("낙하", "비래")),
             Map.entry("질식", List.of("산소결핍", "질식", "밀폐공간")),
             Map.entry("숨", List.of("산소결핍", "질식", "환기")),
             Map.entry("밀폐", List.of("밀폐공간", "산소결핍", "환기")),
             Map.entry("화재", List.of("화재", "인화", "소화")),
-            Map.entry("불", List.of("화재", "인화")),
+            // "불" 한 글자는 "불균형"·"불량" 에도 걸린다.
+            Map.entry("불이", List.of("화재", "인화")),
+            Map.entry("불길", List.of("화재", "인화")),
             Map.entry("폭발", List.of("폭발", "파열")),
-            Map.entry("베", List.of("절단", "베임", "날")),
+            // "베" 한 글자로 두면 "컨베이어" 에서 걸려 절단·베임이 딸려온다.
+            Map.entry("베였", List.of("절단", "베임", "날")),
+            Map.entry("베어", List.of("절단", "베임", "날")),
             Map.entry("찔", List.of("찔림", "절단")),
             Map.entry("화상", List.of("화상", "고열", "이상온도")),
             Map.entry("소음", List.of("소음", "청력")),
             Map.entry("분진", List.of("분진", "호흡용 보호구")),
             Map.entry("중독", List.of("중독", "유해물질", "관리대상")),
             Map.entry("난간", List.of("안전난간", "난간")),
-            Map.entry("사다리", List.of("사다리")),
+            // 사다리 사고는 결국 추락이라 제42조(추락의 방지)까지 함께 찾아야 한다.
+            Map.entry("사다리", List.of("사다리", "추락")),
             Map.entry("비계", List.of("비계")),
             Map.entry("지게차", List.of("지게차", "하역")),
             Map.entry("크레인", List.of("크레인", "양중기")),
@@ -116,7 +124,16 @@ public class QueryExpander {
             }
         }
 
+        // 자르기 전에 가중치순으로 세운다.
+        //
+        // 넣은 순서대로 자르면 일반 어절이 앞에 있어서 전문용어가 통째로 잘려 나간다.
+        // 사장님이 사업장 상황을 길게 적으면(어절 12개는 금방 넘는다) 정작 물어본
+        // "사다리·고소작업·보호구"가 검색어에서 빠지고 "소형·부품·생산·공장" 만 남는다.
+        // 실제로 그래서 답을 못 찾은 질문이 있었다.
+        //
+        // 같은 가중치끼리는 넣은 순서를 유지한다(정렬이 안정적이라 질문에 먼저 나온 말이 앞).
         return weights.entrySet().stream()
+                .sorted(Comparator.comparingInt(Map.Entry<String, Integer>::getValue).reversed())
                 .limit(MAX_TOKENS)
                 .map(e -> new WeightedTerm(e.getKey(), e.getValue()))
                 .toList();

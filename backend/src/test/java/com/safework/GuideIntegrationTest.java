@@ -86,6 +86,38 @@ class GuideIntegrationTest extends IntegrationTest {
     }
 
     @Test
+    @DisplayName("긴 질문에서도 전문용어가 검색어에서 밀려나지 않는다")
+    void longQuestionKeepsDomainTerms() throws Exception {
+        // 사장님이 사업장 상황을 길게 적으면 어절이 금방 12개를 넘는다.
+        // 넣은 순서대로 자르면 앞부분(환경 설명)만 남고 정작 물어본 '사다리'가 빠진다.
+        // 실제로 이 질문이 "관련 내용을 찾지 못했습니다"로 답했다.
+        var result = api.getWithParams("/api/laws/search", token, Map.of(
+                "q", "소형 부품 생산 공장이며 대형 컨베이어 벨트 위치, 금속 공구 및 가공품 적재 공간 존재, "
+                        + "사다리를 이용한 고소 작업 존재, 기계 총 6대 배치, 상시 근무자 5명"));
+
+        assertThat(result.getResponse().getStatus()).isEqualTo(200);
+        String terms = json(result).get("searchTerms").toString();
+
+        // 질문 뒤쪽에 나오지만 조문을 가려내는 건 이쪽이다.
+        assertThat(terms).contains("사다리");
+        // 사다리 사고는 결국 추락이라 제42조까지 닿아야 한다.
+        assertThat(terms).contains("추락");
+        // "컨베이어" 안의 "베" 가 걸려 절단·베임이 딸려오면 안 된다.
+        assertThat(terms).doesNotContain("베임");
+    }
+
+    @Test
+    @DisplayName("동의어 키가 엉뚱한 단어 안에서 걸리지 않는다")
+    void synonymKeysDoNotMatchInsideUnrelatedWords() throws Exception {
+        // 한 글자 키("베"·"맞"·"불")를 쓰면 컨베이어·알맞은·불균형에서 걸린다.
+        var result = api.getWithParams("/api/laws/search", token,
+                Map.of("q", "컨베이어 벨트에 알맞은 방호장치가 불균형하게 설치되어 있습니다"));
+
+        String terms = json(result).get("searchTerms").toString();
+        assertThat(terms).doesNotContain("베임").doesNotContain("낙하").doesNotContain("인화");
+    }
+
+    @Test
     @DisplayName("키워드 검색은 맞는 조문이 없으면 빈 배열로 답한다")
     void lawSearchWithNoMatch() throws Exception {
         var result = api.getWithParams("/api/laws/search", token,
