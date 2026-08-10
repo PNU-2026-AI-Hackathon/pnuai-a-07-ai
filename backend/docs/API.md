@@ -25,12 +25,25 @@ const API_BASE = import.meta.env.VITE_API_BASE_URL ?? '';   // 개발: '' (프�
 fetch(`${API_BASE}${path}`, ...)
 ```
 
-**백엔드** — CORS 는 열어 두었습니다. 기본 허용 출처입니다.
+**백엔드** — 아래 고정 주소로 열어 두었습니다.
+
+```
+VITE_API_BASE_URL=https://haste-denture-tree.ngrok-free.dev
+```
+
+> ⚠️ **요청에 헤더를 하나 더 넣어 주세요.**
+> ```ts
+> headers.set("ngrok-skip-browser-warning", "true");
+> ```
+> 없으면 ngrok 무료 플랜이 **경고 HTML 페이지**를 대신 돌려줍니다(JSON 파싱 실패).
+> 브라우저에서 오는 요청에만 뜨는 거라 curl 로 테스트하면 안 보입니다.
+
+CORS 기본 허용 출처입니다.
 
 ```
 http://localhost:5173  ·  http://127.0.0.1:5173
 https://pnu-2026-ai-hackathon.github.io
-https://*.trycloudflare.com          (시연용 터널, 주소가 매번 바뀌어서 패턴)
+https://*.trycloudflare.com  ·  https://*.ngrok-free.dev  ·  https://*.ngrok-free.app
 ```
 
 다른 주소가 필요하면 **코드 수정 없이** 환경변수로 넣으면 됩니다.
