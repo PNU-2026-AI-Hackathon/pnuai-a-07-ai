@@ -6,6 +6,8 @@ import Step1Input from "./components/Step1Input";
 import Step2Report from "./components/Step2Report";
 import Step3Cases from "./components/Step3Cases";
 import Step4Checklist from "./components/Step4Checklist";
+import LawAssistantPage from "./components/LawAssistantPage";
+import AccidentResponsePage from "./components/AccidentResponsePage";
 
 export const router = createBrowserRouter(
   [
@@ -21,6 +23,8 @@ export const router = createBrowserRouter(
             { path: "report", Component: Step2Report },
             { path: "cases", Component: Step3Cases },
             { path: "checklist", Component: Step4Checklist },
+            { path: "laws", Component: LawAssistantPage },
+            { path: "accident-response", Component: AccidentResponsePage },
           ],
         },
       ],
