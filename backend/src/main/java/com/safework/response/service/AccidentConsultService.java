@@ -56,7 +56,9 @@ public class AccidentConsultService {
     private static final int MAX_CLAUSES_PER_ARTICLE = 4;
     private static final int MAX_CITED_ARTICLES = 24;
 
-    private static final int SUPPORT_PROGRAM_LIMIT = 5;
+    /** fn_accident_advice 가 붙이는 계층 이름 */
+    private static final String LAYER_LEGAL = "법률";
+    private static final String LAYER_POLICY = "정책";
 
     private static final String NO_LLM_NOTE =
             "답변 생성 모델이 설정되지 않아 법령에서 정리한 의무 목록과 근거 조문만 보여드립니다.";
@@ -105,9 +107,8 @@ public class AccidentConsultService {
         String industry = trimToNull(request.getIndustry());
         List<AccidentResponseRepository.SimilarCase> cases = findSimilarCases(accidentType, industry);
 
-        String industryKey = industry == null ? "" : industry;
-        var precedents = adviceRepository.findPrecedents(industryKey, accidentType, seriousLikely);
-        var programs = adviceRepository.findSupportPrograms(industryKey, SUPPORT_PROGRAM_LIMIT);
+        var advice = adviceRepository.findAdvice(
+                industry == null ? "" : industry, accidentType, seriousLikely);
 
         Map<String, String> guidance = generate(situation, accidentType, classified.severity(),
                 legalDuties, adminSteps, penalties, articles);
@@ -125,7 +126,7 @@ public class AccidentConsultService {
                 new Section(guidance.get(AccidentConsultPromptBuilder.LEGAL), legalDuties),
                 new Section(guidance.get(AccidentConsultPromptBuilder.ADMINISTRATIVE), adminSteps),
                 new Section(guidance.get(AccidentConsultPromptBuilder.PENALTY), penalties),
-                toPrecedents(precedents), toSupportPrograms(programs),
+                toPrecedents(advice), toSupportPrograms(advice),
                 articles, cases, vocabulary.missingCaseReason(industry, cases.isEmpty()),
                 ImmediateActionCatalog.DISCLAIMER);
     }
@@ -139,27 +140,21 @@ public class AccidentConsultService {
     }
 
     private List<AccidentConsultDtos.PrecedentDto> toPrecedents(
-            List<AccidentAdviceRepository.Precedent> precedents) {
-        return precedents.stream()
-                .map(p -> new AccidentConsultDtos.PrecedentDto(p.caseName(), p.court(),
-                        trimToNull(p.reference()), p.relevance(), p.summary(), p.url()))
+            List<AccidentAdviceRepository.Advice> advice) {
+        return advice.stream()
+                .filter(a -> LAYER_LEGAL.equals(a.layer()))
+                .map(a -> new AccidentConsultDtos.PrecedentDto(a.title(), a.agency(),
+                        trimToNull(a.reference()), a.reason(), a.detail(), a.url()))
                 .toList();
     }
 
     private List<AccidentConsultDtos.SupportProgramDto> toSupportPrograms(
-            List<AccidentAdviceRepository.Program> programs) {
-        return programs.stream()
-                .map(p -> new AccidentConsultDtos.SupportProgramDto(p.title(), p.agency(),
-                        p.industryMatch() ? "이 업종을 대상으로 하는 지원사업입니다" : "사업주 지원사업",
-                        summaryOf(p), trimToNull(p.deadline()), p.url()))
+            List<AccidentAdviceRepository.Advice> advice) {
+        return advice.stream()
+                .filter(a -> LAYER_POLICY.equals(a.layer()))
+                .map(a -> new AccidentConsultDtos.SupportProgramDto(a.title(), a.agency(),
+                        a.reason(), a.detail(), trimToNull(a.reference()), a.url()))
                 .toList();
-    }
-
-    /** 지원 형태(융자·컨설팅)가 앞에 붙어야 사장님이 "돈인지 서비스인지"를 바로 안다. */
-    private String summaryOf(AccidentAdviceRepository.Program program) {
-        String type = program.supportType();
-        String summary = program.summary() == null ? "" : program.summary();
-        return type == null || type.isBlank() ? summary : type + " · " + summary;
     }
 
     private String blankIfDash(String value) {

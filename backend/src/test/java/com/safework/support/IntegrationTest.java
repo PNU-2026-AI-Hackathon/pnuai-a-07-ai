@@ -60,7 +60,11 @@ public abstract class IntegrationTest {
             "SCHEMA_18_prevention_guide.sql",
             "SCHEMA_20_hybrid_enum.sql",
             "SCHEMA_21_fix_submission_id.sql",
-            "SCHEMA_22_fix_assess_columns.sql"
+            "SCHEMA_22_fix_assess_columns.sql",
+            "SCHEMA_23_sif_accident_kind.sql",
+            // 정책 계층에서 무관 분야(농림축산어업 등)를 걸러낸다. 이게 없으면
+            // 공장 사고 안내에 "사과 기상 재해예방" 같은 게 섞인다.
+            "SCHEMA_24_advice_policy_fix.sql"
     );
 
     static final PostgreSQLContainer<?> POSTGRES =
