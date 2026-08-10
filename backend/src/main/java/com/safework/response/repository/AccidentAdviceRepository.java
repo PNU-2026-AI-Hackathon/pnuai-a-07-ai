@@ -40,37 +40,20 @@ public class AccidentAdviceRepository {
             """;
 
     /**
-     * 이 사고와 닮은 판례. "재해유형이 판결문에 나오는가"로 고르는 규칙이 함수 안에 있어
-     * 그대로 쓴다(행정·정책 계층은 따로 읽으므로 제외).
+     * 판례와 지원사업.
+     *
+     * 어느 판례가 이 재해유형과 가까운지, 어떤 지원사업이 사업주에게 해당하는지 고르는
+     * 규칙이 함수 안에 있어 그대로 쓴다. 행정 계층만 따로 읽는다(위 참고).
+     *
+     * <p>한때 정책 계층에 "사과 기상 재해예방"(장수군 · 농림축산어업) 같은 게 섞여 나와
+     * 백엔드에서 걸러 냈는데, SCHEMA_24 에서 함수가 분야(field) 조건을 갖게 되어
+     * 우회 코드를 걷어냈다. 같은 규칙을 두 곳에 두면 언젠가 어긋난다.
      */
-    private static final String PRECEDENTS = """
-            SELECT title, reason, detail, agency, reference, url
+    private static final String ADVICE = """
+            SELECT layer, title, reason, detail, agency, reference, url
             FROM   fn_accident_advice(?, ?, ?)
-            WHERE  layer = '법률'
-            ORDER  BY priority
-            """;
-
-    /**
-     * 재발방지에 쓸 수 있는 사업주 지원사업.
-     *
-     * fn_accident_advice 의 정책 계층과 조건이 거의 같지만 <b>분야(field) 조건을 하나 더</b>
-     * 건다. 함수는 제목에 '예방' 이 들어가면 통과시키는데, 그러면 "사과 기상 재해예방"
-     * (장수군 · 농림축산어업) 같은 게 공장 사망사고 안내에 섞여 나온다.
-     * 실제로 확인했고, 산재와 관련된 세 분야로 좁히면 나머지 9건은 그대로 남는다.
-     *
-     * 업종이 대상·내용에 언급된 사업을 먼저 보여준다.
-     */
-    private static final String PROGRAMS = """
-            SELECT title, agency, summary, support_type, apply_deadline, detail_url,
-                   (target ILIKE '%%' || ? || '%%' OR content ILIKE '%%' || ? || '%%') AS industry_match
-            FROM   policy_service
-            WHERE  is_employer
-              AND  field IN ('행정·안전', '고용·창업', '보건·의료')
-              AND  title ~ '예방|융자|요율|컨설팅|상생|안전보건관리|대체인력|직장복귀|원직장'
-            ORDER  BY industry_match DESC,
-                      CASE WHEN title ~ '예방|융자|요율|컨설팅|상생|안전보건관리' THEN 1 ELSE 2 END,
-                      service_id
-            LIMIT  ?
+            WHERE  layer <> '행정'
+            ORDER  BY layer DESC, priority
             """;
 
     public record Procedure(
@@ -89,27 +72,18 @@ public class AccidentAdviceRepository {
     ) {
     }
 
-    public record Precedent(
-            String caseName,
-            /** 이 사고와 어떤 점이 닮았는지 */
-            String relevance,
-            String summary,
-            String court,
-            /** 사건번호 · 선고일 */
+    /** fn_accident_advice 의 한 행. layer 는 '법률'(판례) 또는 '정책'(지원사업). */
+    public record Advice(
+            String layer,
+            String title,
+            /** 이 사고와 어떤 점이 닿아 있는지 */
+            String reason,
+            String detail,
+            /** 법원 또는 주관 기관 */
+            String agency,
+            /** 사건번호·선고일 또는 신청 기한 */
             String reference,
             String url
-    ) {
-    }
-
-    public record Program(
-            String title,
-            String agency,
-            String summary,
-            String supportType,
-            String deadline,
-            String url,
-            /** 이 업종이 대상·내용에 언급됐는지 */
-            boolean industryMatch
     ) {
     }
 
@@ -131,9 +105,10 @@ public class AccidentAdviceRepository {
                 severe);
     }
 
-    public List<Precedent> findPrecedents(String industry, String accidentType, boolean severe) {
-        return jdbcTemplate.query(PRECEDENTS,
-                (rs, i) -> new Precedent(
+    public List<Advice> findAdvice(String industry, String accidentType, boolean severe) {
+        return jdbcTemplate.query(ADVICE,
+                (rs, i) -> new Advice(
+                        rs.getString("layer"),
                         rs.getString("title"),
                         rs.getString("reason"),
                         rs.getString("detail"),
@@ -141,19 +116,5 @@ public class AccidentAdviceRepository {
                         rs.getString("reference"),
                         rs.getString("url")),
                 industry, accidentType, severe);
-    }
-
-    public List<Program> findSupportPrograms(String industry, int limit) {
-        String keyword = industry == null ? "" : industry;
-        return jdbcTemplate.query(PROGRAMS,
-                (rs, i) -> new Program(
-                        rs.getString("title"),
-                        rs.getString("agency"),
-                        rs.getString("summary"),
-                        rs.getString("support_type"),
-                        rs.getString("apply_deadline"),
-                        rs.getString("detail_url"),
-                        rs.getBoolean("industry_match")),
-                keyword, keyword, limit);
     }
 }

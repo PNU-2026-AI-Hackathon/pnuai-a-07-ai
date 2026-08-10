@@ -7,10 +7,44 @@
 
 - Base URL (로컬): `http://localhost:8080`
 - Swagger: `http://localhost:8080/swagger-ui/index.html`
-- 인증: `/api/auth/**` 를 제외한 **모든 API 에 JWT 필요**
+- 인증: `/api/auth/register`, `/api/auth/login` 을 제외한 **모든 API 에 JWT 필요**
   ```
   Authorization: Bearer {accessToken}
   ```
+
+### 배포했을 때 — API 주소와 CORS
+
+개발 중에는 Vite 가 `/api` 를 백엔드로 프록시해 줘서 **브라우저 입장에서는 같은 주소**입니다.
+그런데 프론트를 GitHub Pages 등에 올리면 프록시가 없어서 `/api/...` 가 **프론트 주소로**
+날아가 404 가 납니다.
+
+**프론트** — API 주소를 환경변수로 받아 붙여 주세요.
+
+```ts
+const API_BASE = import.meta.env.VITE_API_BASE_URL ?? '';   // 개발: '' (프록시), 배포: 'https://api.example.com'
+fetch(`${API_BASE}${path}`, ...)
+```
+
+**백엔드** — CORS 는 열어 두었습니다. 기본 허용 출처입니다.
+
+```
+http://localhost:5173  ·  http://127.0.0.1:5173
+https://pnu-2026-ai-hackathon.github.io
+https://*.trycloudflare.com          (시연용 터널, 주소가 매번 바뀌어서 패턴)
+```
+
+다른 주소가 필요하면 **코드 수정 없이** 환경변수로 넣으면 됩니다.
+
+```bash
+APP_CORS_ALLOWED_ORIGINS=https://주소1,https://주소2
+```
+
+> ⚠️ **HTTPS 페이지에서 HTTP 백엔드는 브라우저가 막습니다**(mixed content).
+> GitHub Pages 는 HTTPS 라서 백엔드도 **HTTPS 로 배포**해야 합니다.
+> 인증서 없이 빨리 확인하려면 Cloudflare 터널이 HTTPS 주소를 바로 줍니다.
+
+> `Content-Disposition` 을 노출하도록 해 두었습니다. PDF 다운로드에서 파일 이름을
+> 읽으려면 필요합니다.
 
 ---
 
