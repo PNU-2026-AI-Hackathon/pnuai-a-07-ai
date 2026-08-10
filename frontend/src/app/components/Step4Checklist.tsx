@@ -19,6 +19,8 @@ const gradeConfig: Record<RiskGrade, { label: string; className: string }> = {
   CRITICAL: { label: "매우 위험", className: "bg-red-700" },
 };
 
+const PRIORITY_CHECKLIST_LIMIT = 8;
+
 export default function Step4Checklist() {
   const navigate = useNavigate();
   const { workplace, checklistItems, setChecklistItems, checklistAnswers: answers, setChecklistAnswers, riskAssessment, setRiskAssessment } = useSafety();
@@ -53,10 +55,16 @@ export default function Step4Checklist() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [workplace?.id]);
 
-  const categories = useMemo(() => Array.from(new Set(checklistItems.map((item) => item.category))).sort(), [checklistItems]);
-  const visibleItems = category === "ALL" ? checklistItems : checklistItems.filter((item) => item.category === category);
-  const answeredCount = Object.keys(answers).filter((code) => checklistItems.some((item) => item.itemCode === code)).length;
-  const completionRate = checklistItems.length ? Math.round((answeredCount / checklistItems.length) * 100) : 0;
+  const priorityItems = useMemo(
+    () => [...checklistItems]
+      .sort((a, b) => Number(b.isCritical) - Number(a.isCritical) || b.riskWeight - a.riskWeight)
+      .slice(0, PRIORITY_CHECKLIST_LIMIT),
+    [checklistItems],
+  );
+  const categories = useMemo(() => Array.from(new Set(priorityItems.map((item) => item.category))).sort(), [priorityItems]);
+  const visibleItems = category === "ALL" ? priorityItems : priorityItems.filter((item) => item.category === category);
+  const answeredCount = Object.keys(answers).filter((code) => priorityItems.some((item) => item.itemCode === code)).length;
+  const completionRate = priorityItems.length ? Math.round((answeredCount / priorityItems.length) * 100) : 0;
 
   if (!workplace) return null;
 
@@ -66,8 +74,8 @@ export default function Step4Checklist() {
   };
 
   const submitChecklist = async () => {
-    if (answeredCount !== checklistItems.length) {
-      setError(`모든 중대 항목에 답해 주세요. 아직 ${checklistItems.length - answeredCount}개가 남았습니다.`);
+    if (answeredCount !== priorityItems.length) {
+      setError(`핵심 문항에 모두 답해 주세요. 아직 ${priorityItems.length - answeredCount}개가 남았습니다.`);
       return;
     }
 
@@ -83,7 +91,7 @@ export default function Step4Checklist() {
     try {
       const result = await safetyApi.submitChecklist(
         workplace.id,
-        checklistItems.map((item) => ({ itemCode: item.itemCode, answer: answers[item.itemCode] })),
+        priorityItems.map((item) => ({ itemCode: item.itemCode, answer: answers[item.itemCode] })),
       );
       setRiskAssessment(result.riskAssessment);
       toast.success("위험도 진단이 완료되었습니다.", { description: `${result.answeredItems}개 답변이 위험도 계산에 반영되었습니다.` });
@@ -125,7 +133,7 @@ export default function Step4Checklist() {
       <header className="mb-8 text-center">
         <div className="mb-4 inline-flex items-center gap-2 rounded-full bg-red-100 px-4 py-2 text-red-800"><CheckCircle2 className="h-5 w-5" /><span className="text-sm font-medium">STEP 4 / 4 · 중대 체크리스트</span></div>
         <h1 className="text-3xl font-bold text-gray-950 md:text-4xl">현장 상태를 점검하세요</h1>
-        <p className="mt-3 text-gray-600">{workplace.name}의 중대 항목만 우선 불러옵니다. 해당 없음은 위험도 계산에서 제외됩니다.</p>
+        <p className="mt-3 text-gray-600">{workplace.name}의 위험도가 높은 핵심 문항을 최대 {PRIORITY_CHECKLIST_LIMIT}개 점검합니다. 해당 없음은 위험도 계산에서 제외됩니다.</p>
         {isPreview && <p className="mt-2 text-sm text-gray-500">예시 데이터로 표시한 화면입니다.</p>}
       </header>
 
@@ -177,9 +185,9 @@ export default function Step4Checklist() {
         <>
           <Card className="mb-6 border-2">
             <CardContent className="p-5">
-              <div className="mb-3 flex flex-wrap items-end justify-between gap-3"><div><h2 className="font-semibold text-gray-950">응답 진행률</h2><p className="text-sm text-gray-600">{answeredCount} / {checklistItems.length}개 응답</p></div><strong className="text-2xl text-blue-700">{completionRate}%</strong></div>
+              <div className="mb-3 flex flex-wrap items-end justify-between gap-3"><div><h2 className="font-semibold text-gray-950">핵심 문항 응답 진행률</h2><p className="text-sm text-gray-600">{answeredCount} / {priorityItems.length}개 응답 · 전체 {checklistItems.length}개 중 중요도 순으로 선정</p></div><strong className="text-2xl text-blue-700">{completionRate}%</strong></div>
               <Progress value={completionRate} className="h-3" />
-              <div className="mt-5 max-w-xs"><Select value={category} onValueChange={setCategory}><SelectTrigger aria-label="재해유형 필터"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="ALL">전체 재해유형 ({checklistItems.length})</SelectItem>{categories.map((item) => <SelectItem key={item} value={item}>{item}</SelectItem>)}</SelectContent></Select></div>
+              <div className="mt-5 max-w-xs"><Select value={category} onValueChange={setCategory}><SelectTrigger aria-label="재해유형 필터"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="ALL">전체 재해유형 ({priorityItems.length})</SelectItem>{categories.map((item) => <SelectItem key={item} value={item}>{item}</SelectItem>)}</SelectContent></Select></div>
             </CardContent>
           </Card>
 
@@ -205,7 +213,7 @@ export default function Step4Checklist() {
 
           <div className="mt-8 flex flex-col gap-3 sm:flex-row">
             <Button variant="outline" size="lg" onClick={() => navigate("/cases")} className="h-12 sm:w-40">이전 단계</Button>
-            <Button size="lg" onClick={submitChecklist} disabled={isSubmitting || answeredCount !== checklistItems.length} className="h-12 flex-1 bg-blue-600 hover:bg-blue-700">{isSubmitting ? <Loader2 className="h-5 w-5 animate-spin" /> : <CheckCircle2 className="h-5 w-5" />}체크리스트 제출하고 위험도 진단</Button>
+            <Button size="lg" onClick={submitChecklist} disabled={isSubmitting || answeredCount !== priorityItems.length} className="h-12 flex-1 bg-blue-600 hover:bg-blue-700">{isSubmitting ? <Loader2 className="h-5 w-5 animate-spin" /> : <CheckCircle2 className="h-5 w-5" />}체크리스트 제출하고 위험도 진단</Button>
           </div>
         </>
       )}

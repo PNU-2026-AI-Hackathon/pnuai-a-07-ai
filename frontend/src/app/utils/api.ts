@@ -20,6 +20,8 @@ import type {
   WorkplaceRequest,
 } from "../types/safety";
 
+const API_BASE = import.meta.env.VITE_API_BASE_URL ?? "";
+
 export class ApiError extends Error {
   status: number;
   fields: Record<string, string>;
@@ -50,10 +52,11 @@ async function apiFetch<T>(path: string, init: RequestInit = {}): Promise<T> {
   const headers = new Headers(init.headers);
   if (authorization) headers.set("Authorization", authorization);
   if (init.body && !(init.body instanceof FormData)) headers.set("Content-Type", "application/json");
+  headers.set("ngrok-skip-browser-warning", "true");
 
   let response: Response;
   try {
-    response = await fetch(path, { ...init, headers });
+    response = await fetch(`${API_BASE}${path}`, { ...init, headers });
   } catch {
     throw new ApiError(0, "백엔드 서버에 연결하지 못했습니다. 서버가 실행 중인지 확인해 주세요.");
   }
@@ -149,8 +152,11 @@ export const safetyApi = {
   downloadReport: async (reportId: number) => {
     let response: Response;
     try {
-      response = await fetch(`/api/reports/${reportId}/download`, {
-        headers: { Authorization: getAuthorizationHeader() },
+      response = await fetch(`${API_BASE}/api/reports/${reportId}/download`, {
+        headers: {
+          Authorization: getAuthorizationHeader(),
+          "ngrok-skip-browser-warning": "true",
+        },
       });
     } catch {
       throw new ApiError(0, "PDF를 내려받지 못했습니다. 서버 연결을 확인해 주세요.");
