@@ -39,7 +39,7 @@ jobs:
       - name: Build frontend
         working-directory: frontend
         env:
-          VITE_DEMO_MODE: "true"
+          VITE_DEMO_MODE: "false"
         run: npm run build
 
       - name: Add SPA fallback

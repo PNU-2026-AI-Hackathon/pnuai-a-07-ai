@@ -7,7 +7,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "./ui/
 import { Input } from "./ui/input";
 import { Label } from "./ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "./ui/tabs";
-import { saveAuthToken, startDemoSession, type AuthResponse } from "../utils/auth";
+import { saveAuthToken, startDemoSession } from "../utils/auth";
+import type { TokenResponse } from "../types/safety";
 
 type AuthMode = "login" | "register";
 
@@ -42,7 +43,8 @@ async function getErrorMessage(response: Response, mode: AuthMode) {
 export default function AuthPage() {
   const navigate = useNavigate();
   const location = useLocation();
-  const isDemoMode = import.meta.env.VITE_DEMO_MODE === "true";
+  // 시연에서도 실제 백엔드 인증을 사용합니다. VITE_DEMO_MODE 값으로 인증을 우회하지 않습니다.
+  const isDemoMode = false;
   const [mode, setMode] = useState<AuthMode>("login");
   const [form, setForm] = useState<AuthForm>(initialForm);
   const [error, setError] = useState("");
@@ -108,7 +110,7 @@ export default function AuthPage() {
         throw new Error(await getErrorMessage(response, mode));
       }
 
-      const authResponse = (await response.json()) as AuthResponse;
+      const authResponse = (await response.json()) as TokenResponse;
       saveAuthToken(authResponse);
       toast.success(mode === "login" ? "로그인되었습니다." : "회원가입이 완료되었습니다.");
       navigate(redirectTo, { replace: true });

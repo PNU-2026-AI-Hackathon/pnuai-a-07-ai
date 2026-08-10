@@ -33,6 +33,8 @@ export default defineConfig({
     },
   },
   server: {
+    // Cloudflare 임시 터널의 무작위 하위 도메인을 허용합니다.
+    allowedHosts: ['.trycloudflare.com'],
     proxy: {
       '/api': 'http://localhost:8080',
     },
