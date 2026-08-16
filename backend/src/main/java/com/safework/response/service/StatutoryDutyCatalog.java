@@ -23,14 +23,6 @@ import java.util.List;
 @Component
 public class StatutoryDutyCatalog {
 
-    /** 중대재해 판단 기준 (산업안전보건법 시행규칙 제3조) — 서술만으로는 못 정하므로 그대로 보여 준다. */
-    public static final List<String> SERIOUS_ACCIDENT_CRITERIA = List.of(
-            "사망자가 1명 이상 발생한 재해",
-            "3개월 이상의 요양이 필요한 부상자가 동시에 2명 이상 발생한 재해",
-            "부상자 또는 직업성 질병자가 동시에 10명 이상 발생한 재해");
-
-    public static final String SERIOUS_ACCIDENT_CRITERIA_BASIS = "산업안전보건법 시행규칙 제3조";
-
     /** 모든 산업재해에 공통으로 적용되는 의무 */
     private static final List<DutyDto> COMMON_DUTIES = List.of(
             new DutyDto("사고 현장 보존 · 원인조사 협조",

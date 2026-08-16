@@ -2,6 +2,7 @@ package com.safework.global.exception;
 
 import jakarta.validation.ConstraintViolation;
 import jakarta.validation.ConstraintViolationException;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.validation.FieldError;
@@ -14,6 +15,7 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.stream.Collectors;
 
+@Slf4j
 @RestControllerAdvice
 public class GlobalExceptionHandler {
 
@@ -77,8 +79,15 @@ public class GlobalExceptionHandler {
                 .body(Map.of("error", e.getMessage()));
     }
 
+    /**
+     * 예상 못 한 오류.
+     *
+     * 사용자에게는 내부 사정을 알리지 않되, <b>로그에는 스택까지 남긴다</b>.
+     * 남기지 않으면 500 이 났을 때 원인을 찾을 방법이 없다(실제로 그래서 한참 헤맸다).
+     */
     @ExceptionHandler(Exception.class)
     public ResponseEntity<Map<String, String>> handleException(Exception e) {
+        log.error("처리하지 못한 오류", e);
         return ResponseEntity.internalServerError()
                 .body(Map.of("error", "서버 내부 오류가 발생했습니다."));
     }

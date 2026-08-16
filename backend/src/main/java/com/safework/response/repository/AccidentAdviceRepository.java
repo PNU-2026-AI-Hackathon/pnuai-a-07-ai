@@ -56,6 +56,27 @@ public class AccidentAdviceRepository {
             ORDER  BY layer DESC, priority
             """;
 
+    /**
+     * 중대재해 해당 여부 판정.
+     *
+     * 예전에는 기준 3가지를 백엔드에 적어 두고 "직접 대조하세요"로 안내했는데,
+     * DB 파트가 기준을 표로 만들고 판정 함수까지 붙여 줬다(SCHEMA_25).
+     * 사망자·부상자 수를 알면 이제 자동으로 판정하고 어떤 기준에 걸렸는지도 알려준다.
+     */
+    private static final String CHECK_SEVERE = """
+            SELECT is_severe, matched FROM fn_check_severe(?, ?, ?)
+            """;
+
+    /** 중대재해 판단 기준. 사용자가 직접 대조할 수 있게 그대로 보여 준다. */
+    private static final String SEVERE_CRITERIA = """
+            SELECT description, legal_basis
+            FROM   severe_accident_criteria
+            ORDER  BY criteria_id
+            """;
+
+    public record SevereCheck(boolean severe, List<String> matched) {
+    }
+
     public record Procedure(
             String code,
             String category,
@@ -103,6 +124,28 @@ public class AccidentAdviceRepository {
                         rs.getString("disclaimer"),
                         rs.getInt("priority")),
                 severe);
+    }
+
+    /** 사망·중상·부상자 수로 중대재해 여부를 판정한다. 모르는 값은 0 으로 넘긴다. */
+    public SevereCheck checkSevere(int death, int seriousInjury, int injuryOrDisease) {
+        return jdbcTemplate.queryForObject(CHECK_SEVERE,
+                (rs, i) -> {
+                    var matched = rs.getArray("matched");
+                    List<String> labels = matched == null ? List.of()
+                            : List.of((String[]) matched.getArray());
+                    return new SevereCheck(rs.getBoolean("is_severe"), labels);
+                },
+                death, seriousInjury, injuryOrDisease);
+    }
+
+    /** 중대재해 판단 기준 문구. 근거 조문은 어느 행이나 같아 첫 행 것을 쓴다. */
+    public List<String> findSevereCriteria() {
+        return jdbcTemplate.query(SEVERE_CRITERIA, (rs, i) -> rs.getString("description"));
+    }
+
+    public String findSevereCriteriaBasis() {
+        return jdbcTemplate.query(SEVERE_CRITERIA, (rs, i) -> rs.getString("legal_basis"))
+                .stream().findFirst().orElse(null);
     }
 
     public List<Advice> findAdvice(String industry, String accidentType, boolean severe) {

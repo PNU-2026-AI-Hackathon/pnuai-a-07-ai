@@ -3,6 +3,7 @@ package com.safework.response.dto;
 import com.safework.law.dto.LawSearchResponse;
 import com.safework.response.repository.AccidentResponseRepository;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.PositiveOrZero;
 import jakarta.validation.constraints.Size;
 import lombok.Getter;
 import lombok.Setter;
@@ -32,6 +33,27 @@ public final class AccidentConsultDtos {
          * 프론트가 "추정 유형이 틀렸다면 고르세요"로 다시 물었을 때 쓴다. 선택
          */
         private String accidentType;
+
+        /**
+         * 피해 규모. 알면 넣고 모르면 비워 둔다(선택).
+         *
+         * <p>하나라도 들어오면 중대재해 여부를 <b>글이 아니라 숫자로 판정</b>한다.
+         * 서술만으로는 "3개월 이상 요양이 필요한 부상자 2명" 같은 기준을 알 수 없어서,
+         * 값이 없으면 기준을 보여주고 사용자가 직접 대조하게 한다.
+         */
+        @PositiveOrZero(message = "사망자 수는 0 이상이어야 합니다")
+        private Integer deathCount;
+
+        @PositiveOrZero(message = "중상자 수는 0 이상이어야 합니다")
+        private Integer seriousInjuryCount;
+
+        @PositiveOrZero(message = "부상·질병자 수는 0 이상이어야 합니다")
+        private Integer injuryOrDiseaseCount;
+
+        /** 셋 중 하나라도 들어왔는지 */
+        public boolean hasCasualtyCounts() {
+            return deathCount != null || seriousInjuryCount != null || injuryOrDiseaseCount != null;
+        }
     }
 
     /** 안내문이 어떻게 만들어졌는지 */
@@ -144,25 +166,34 @@ public final class AccidentConsultDtos {
     }
 
     /**
-     * 서술에서 읽어 낸 피해 정도.
+     * 피해 정도와 중대재해 해당 여부.
      *
-     * 중대재해 여부는 여기서 <b>판정하지 않는다</b>. 사망자 수나 요양 기간은 글에 없을 수 있어서
-     * 기준(criteria)을 함께 내려보내고 사용자가 스스로 확인하게 한다.
+     * <p>피해 규모(사망자·중상자 수)를 함께 보내면 <b>판정</b>하고({@code determined=true}),
+     * 없으면 서술에서 <b>추정</b>만 한다. 글만으로는 "3개월 이상 요양" 같은 기준을 알 수 없어서,
+     * 추정일 때는 기준(criteria)을 내려보내 사용자가 직접 대조하게 한다.
      */
     @Getter
     public static class SeverityDto {
         private final String level;
-        /** 중대재해일 가능성이 있어 보이는지. 판정이 아니라 안내 강도를 정한 근거다. */
+        /** 중대재해로 보고 안내할지. determined 가 true 면 판정 결과, false 면 추정이다. */
         private final boolean seriousAccidentLikely;
+        /** 숫자로 판정했는지. false 면 서술에서 추정한 것이라 확정이 아니다. */
+        private final boolean determined;
+        /** 판정했을 때 실제로 충족한 기준. 추정이면 빈 배열 */
+        private final List<String> matchedCriteria;
         private final String note;
         /** 중대재해 판단 기준 — 사용자가 직접 대조할 수 있게 그대로 준다 */
         private final List<String> criteria;
         private final String criteriaBasis;
 
-        public SeverityDto(String level, boolean seriousAccidentLikely, String note,
+        @SuppressWarnings("checkstyle:ParameterNumber")
+        public SeverityDto(String level, boolean seriousAccidentLikely, boolean determined,
+                           List<String> matchedCriteria, String note,
                            List<String> criteria, String criteriaBasis) {
             this.level = level;
             this.seriousAccidentLikely = seriousAccidentLikely;
+            this.determined = determined;
+            this.matchedCriteria = matchedCriteria;
             this.note = note;
             this.criteria = criteria;
             this.criteriaBasis = criteriaBasis;
