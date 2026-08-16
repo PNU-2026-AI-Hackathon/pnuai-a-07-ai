@@ -45,11 +45,18 @@ public class ChecklistService {
 
     /** 사업장 업종에 해당하는 점검 문항 목록 */
     public List<ChecklistItemResponse> getItems(Long memberId, Long workplaceId,
-                                                 boolean criticalOnly, String workType, String category) {
+                                                 boolean criticalOnly, List<String> workTypes,
+                                                 String category, int limit) {
         Workplace workplace = findOwnedWorkplace(memberId, workplaceId);
 
-        return checklistItemRepository
-                .search(workplace.getIndustry(), criticalOnly, workType, category).stream()
+        int safeLimit = Math.max(1, Math.min(limit, 50));
+        List<ChecklistItem> items = workTypes == null || workTypes.isEmpty()
+                ? checklistItemRepository.search(workplace.getIndustry(), criticalOnly, null, category)
+                : checklistItemRepository.searchByWorkTypes(
+                        workplace.getIndustry(), criticalOnly, workTypes, category);
+
+        return items.stream()
+                .limit(safeLimit)
                 .map(ChecklistItemResponse::new)
                 .toList();
     }

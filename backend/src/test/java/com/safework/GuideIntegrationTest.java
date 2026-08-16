@@ -7,6 +7,8 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.util.Map;
 
 import static com.safework.support.ApiClient.json;
@@ -231,6 +233,16 @@ class GuideIntegrationTest extends IntegrationTest {
         assertThat(criticalOnly.size()).isLessThanOrEqualTo(all.size());
         for (JsonNode item : criticalOnly) {
             assertThat(item.get("isCritical").asBoolean()).isTrue();
+        }
+
+        String workType = all.get(0).get("workType").asText();
+        JsonNode selectedWork = json(api.getWithToken(
+                "/api/workplaces/" + workplaceId + "/checklist-items?workType="
+                        + URLEncoder.encode(workType, StandardCharsets.UTF_8) + "&limit=5",
+                token));
+        assertThat(selectedWork.size()).isLessThanOrEqualTo(5);
+        for (JsonNode item : selectedWork) {
+            assertThat(item.get("workType").asText()).isEqualTo(workType);
         }
     }
 }
