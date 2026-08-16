@@ -30,6 +30,16 @@ export interface Workplace extends WorkplaceRequest {
   createdAt: string;
 }
 
+export interface WorkTypeReference {
+  industry: string;
+  workType: string;
+  itemCount: number;
+}
+
+export interface ReferenceData {
+  workTypes: WorkTypeReference[];
+}
+
 export type Answer = "YES" | "NO" | "NA";
 
 export interface ChecklistItem {

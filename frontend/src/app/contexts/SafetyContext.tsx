@@ -16,6 +16,7 @@ interface DiagnosisSession {
   workplace: Workplace | null;
   preventionGuide: PreventionGuideResponse | null;
   checklistItems: ChecklistItem[];
+  selectedWorkTypes: string[];
   checklistAnswers: Record<string, Answer>;
   riskAssessment: RiskAssessment | null;
 }
@@ -25,6 +26,7 @@ interface SafetyContextType extends DiagnosisSession {
   setWorkplace: (value: Workplace | null) => void;
   setPreventionGuide: (value: PreventionGuideResponse | null) => void;
   setChecklistItems: (value: ChecklistItem[]) => void;
+  setSelectedWorkTypes: (value: string[]) => void;
   setChecklistAnswers: (value: Record<string, Answer>) => void;
   setRiskAssessment: (value: RiskAssessment | null) => void;
   startPreviewDiagnosis: () => void;
@@ -36,6 +38,7 @@ const emptySession: DiagnosisSession = {
   workplace: null,
   preventionGuide: null,
   checklistItems: [],
+  selectedWorkTypes: [],
   checklistAnswers: {},
   riskAssessment: null,
 };
@@ -68,6 +71,7 @@ export function SafetyProvider({ children }: { children: React.ReactNode }) {
       setWorkplace: (value) => update("workplace", value),
       setPreventionGuide: (value) => update("preventionGuide", value),
       setChecklistItems: (value) => update("checklistItems", value),
+      setSelectedWorkTypes: (value) => update("selectedWorkTypes", value),
       setChecklistAnswers: (value) => update("checklistAnswers", value),
       setRiskAssessment: (value) => update("riskAssessment", value),
       startPreviewDiagnosis: () => {

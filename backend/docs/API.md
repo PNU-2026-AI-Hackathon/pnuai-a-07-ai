@@ -232,12 +232,14 @@ GET /api/workplaces/{workplaceId}/checklist-items
 | 쿼리 파라미터 | 기본값 | 설명 |
 |---|:---:|---|
 | `criticalOnly` | `false` | `true` 면 중대 항목만 |
-| `workType` | — | 작업 종류로 필터 |
+| `workType` | — | 작업 종류로 필터. 여러 작업은 같은 파라미터를 반복 (`workType=A&workType=B`) |
 | `category` | — | 재해유형으로 필터 |
+| `limit` | `30` | 반환 문항 수. 최소 1개, 최대 50개 |
 
 > ⚠️ **문항이 많습니다.** 제조업 385개 / 건설업 450개.
-> 사장님께 전부 답하게 하는 건 비현실적이니 `criticalOnly=true`(제조업 98개) 로 시작하거나,
-> 예방 가이드가 알려준 상위 재해유형만 `category` 로 걸러 쓰는 걸 권합니다.
+> 사장님께 전부 답하게 하는 건 비현실적이니 `GET /api/references`의 `workTypes`에서
+> 현장 작업을 먼저 선택하고, `criticalOnly=true`와 선택한 `workType`을 함께 보내세요.
+> 서버는 위험도 순으로 최대 30개만 반환합니다.
 
 **200**
 ```json

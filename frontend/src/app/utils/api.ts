@@ -13,6 +13,7 @@ import type {
   LawSearchResponse,
   Me,
   PreventionGuideResponse,
+  ReferenceData,
   ReportCreateResponse,
   RiskAssessment,
   SimilarCaseResponse,
@@ -96,8 +97,11 @@ export const safetyApi = {
     return apiFetch<PreventionGuideResponse>(`/api/prevention-guide?${params}`);
   },
 
-  getChecklistItems: (workplaceId: number, criticalOnly = true) => {
-    const params = new URLSearchParams({ criticalOnly: String(criticalOnly) });
+  getReferences: () => apiFetch<ReferenceData>("/api/references"),
+
+  getChecklistItems: (workplaceId: number, criticalOnly = true, workTypes: string[] = [], limit = 30) => {
+    const params = new URLSearchParams({ criticalOnly: String(criticalOnly), limit: String(limit) });
+    workTypes.forEach((workType) => params.append("workType", workType));
     return apiFetch<ChecklistItem[]>(`/api/workplaces/${workplaceId}/checklist-items?${params}`);
   },
 

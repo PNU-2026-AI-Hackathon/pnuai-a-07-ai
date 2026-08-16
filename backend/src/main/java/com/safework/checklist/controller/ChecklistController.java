@@ -32,11 +32,12 @@ public class ChecklistController {
             Authentication authentication,
             @PathVariable Long workplaceId,
             @RequestParam(defaultValue = "false") boolean criticalOnly,
-            @RequestParam(required = false) String workType,
-            @RequestParam(required = false) String category) {
+            @RequestParam(required = false) List<String> workType,
+            @RequestParam(required = false) String category,
+            @RequestParam(defaultValue = "30") int limit) {
         Long memberId = (Long) authentication.getPrincipal();
         return ResponseEntity.ok(
-                checklistService.getItems(memberId, workplaceId, criticalOnly, workType, category));
+                checklistService.getItems(memberId, workplaceId, criticalOnly, workType, category, limit));
     }
 
     @Operation(summary = "체크리스트 제출 (위험도 진단 포함)",

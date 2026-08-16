@@ -24,5 +24,19 @@ public interface ChecklistItemRepository extends JpaRepository<ChecklistItem, Lo
                                @Param("workType") String workType,
                                @Param("category") String category);
 
+    @Query("""
+            SELECT i FROM ChecklistItem i
+            WHERE i.active = true
+              AND i.targetIndustry = :industry
+              AND (:criticalOnly = false OR i.critical = true)
+              AND i.workType IN :workTypes
+              AND (:category IS NULL OR i.category = :category)
+            ORDER BY i.critical DESC, i.riskWeight DESC, i.itemCode
+            """)
+    List<ChecklistItem> searchByWorkTypes(@Param("industry") String industry,
+                                          @Param("criticalOnly") boolean criticalOnly,
+                                          @Param("workTypes") Collection<String> workTypes,
+                                          @Param("category") String category);
+
     List<ChecklistItem> findByItemCodeIn(Collection<String> itemCodes);
 }
