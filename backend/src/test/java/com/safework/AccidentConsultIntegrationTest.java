@@ -167,6 +167,53 @@ class AccidentConsultIntegrationTest extends IntegrationTest {
     }
 
     @Test
+    @DisplayName("피해 규모를 알려주면 중대재해 여부를 숫자로 판정한다")
+    void determinesSeverityFromCasualtyCounts() throws Exception {
+        Map<String, Object> body = new HashMap<>();
+        body.put("situation", "작업 중 직원이 다쳤습니다.");   // 글만으로는 알 수 없는 서술
+        body.put("seriousInjuryCount", 2);                    // 3개월 이상 요양 2명 → 중대재해
+
+        var result = api.postJson("/api/accident-response/consult", token, body);
+        assertThat(result.getResponse().getStatus())
+                .withFailMessage("응답 본문: %s", result.getResponse().getContentAsString())
+                .isEqualTo(200);
+        JsonNode severity = json(result).get("severity");
+
+        // 추정이 아니라 판정이다.
+        assertThat(severity.get("determined").asBoolean()).isTrue();
+        assertThat(severity.get("seriousAccidentLikely").asBoolean()).isTrue();
+        // 어느 기준에 걸렸는지 알려줘야 사장님이 납득한다.
+        assertThat(severity.get("matchedCriteria").toString()).contains("2명 이상");
+    }
+
+    @Test
+    @DisplayName("기준에 못 미치면 중대재해가 아니라고 판정한다")
+    void determinesNotSevere() throws Exception {
+        Map<String, Object> body = new HashMap<>();
+        body.put("situation", "작업 중 직원이 손을 다쳤습니다.");
+        body.put("injuryOrDiseaseCount", 1);
+
+        JsonNode severity = json(api.postJson("/api/accident-response/consult", token, body))
+                .get("severity");
+
+        assertThat(severity.get("determined").asBoolean()).isTrue();
+        assertThat(severity.get("seriousAccidentLikely").asBoolean()).isFalse();
+        assertThat(severity.get("matchedCriteria")).isEmpty();
+    }
+
+    @Test
+    @DisplayName("피해 규모를 안 주면 판정하지 않고 기준만 보여준다")
+    void keepsEstimateWithoutCounts() throws Exception {
+        JsonNode severity = consult("기계에 손이 끼었습니다.").get("severity");
+
+        assertThat(severity.get("determined").asBoolean()).isFalse();
+        assertThat(severity.get("matchedCriteria")).isEmpty();
+        // 기준은 DB 에서 가져온다(개정되면 코드 수정 없이 따라간다).
+        assertThat(severity.get("criteria")).hasSize(3);
+        assertThat(severity.get("criteriaBasis").asText()).contains("시행규칙 제3조");
+    }
+
+    @Test
     @DisplayName("경미한 사고면 중대재해처벌법 항목을 빼고 안내한다")
     void minorAccidentDropsSeriousProvisions() throws Exception {
         JsonNode body = consult("직원이 넘어져서 무릎에 찰과상을 입었습니다. 연고만 발랐습니다.");

@@ -95,7 +95,14 @@ public class AccidentConsultService {
         String accidentType = chosenType != null ? chosenType : classified.accidentType();
         boolean typeCertain = chosenType != null || classified.certain();
 
-        boolean seriousLikely = isSeriousLikely(classified.severity());
+        // 피해 규모를 알면 숫자로 판정하고, 모르면 서술에서 추정한다.
+        AccidentAdviceRepository.SevereCheck check = request.hasCasualtyCounts()
+                ? adviceRepository.checkSevere(
+                        orZero(request.getDeathCount()),
+                        orZero(request.getSeriousInjuryCount()),
+                        orZero(request.getInjuryOrDiseaseCount()))
+                : null;
+        boolean seriousLikely = check != null ? check.severe() : isSeriousLikely(classified.severity());
 
         List<DutyDto> legalDuties = dutyCatalog.legalDuties(seriousLikely);
         // 행정 절차는 DB(admin_procedure)에서 가져온다. 서식 링크·담당 기관·과태료 금액이
@@ -120,7 +127,7 @@ public class AccidentConsultService {
         };
 
         return new Response(situation, accidentType, typeCertain, classifier.knownTypes(),
-                severityOf(classified.severity(), seriousLikely),
+                severityOf(classified.severity(), seriousLikely, check),
                 mode, note, mode == GuidanceMode.GENERATED ? llmClient.modelName() : null,
                 actionCatalog.actions(),
                 new Section(guidance.get(AccidentConsultPromptBuilder.LEGAL), legalDuties),
@@ -171,15 +178,32 @@ public class AccidentConsultService {
         return severity != AccidentClassifier.Severity.MINOR;
     }
 
-    private SeverityDto severityOf(AccidentClassifier.Severity severity, boolean seriousLikely) {
+    private SeverityDto severityOf(AccidentClassifier.Severity severity, boolean seriousLikely,
+                                   AccidentAdviceRepository.SevereCheck check) {
+        // 기준은 DB(severe_accident_criteria)가 정본이다. 개정되면 코드 수정 없이 따라간다.
+        List<String> criteria = adviceRepository.findSevereCriteria();
+        String basis = adviceRepository.findSevereCriteriaBasis();
+
+        if (check != null) {
+            String note = check.severe()
+                    ? "입력하신 피해 규모가 중대재해 기준에 해당합니다. 즉시 작업을 중지하고 "
+                            + "관할 지방고용노동관서에 지체 없이 보고해야 합니다."
+                    : "입력하신 피해 규모는 중대재해 기준에 해당하지 않습니다. 다만 부상 정도가 "
+                            + "확정되면 다시 확인해 주세요(요양 기간이 늘어나면 기준이 바뀔 수 있습니다).";
+            return new SeverityDto(severity.name(), check.severe(), true, check.matched(),
+                    note, criteria, basis);
+        }
+
         String note = switch (severity) {
             case FATAL, SEVERE -> SEVERITY_NOTE_LIKELY;
-            case UNKNOWN -> SEVERITY_NOTE_UNKNOWN;
-            case MINOR -> SEVERITY_NOTE_UNKNOWN;
+            case UNKNOWN, MINOR -> SEVERITY_NOTE_UNKNOWN;
         };
-        return new SeverityDto(severity.name(), seriousLikely, note,
-                StatutoryDutyCatalog.SERIOUS_ACCIDENT_CRITERIA,
-                StatutoryDutyCatalog.SERIOUS_ACCIDENT_CRITERIA_BASIS);
+        return new SeverityDto(severity.name(), seriousLikely, false, List.of(),
+                note, criteria, basis);
+    }
+
+    private int orZero(Integer value) {
+        return value == null ? 0 : value;
     }
 
     /**
