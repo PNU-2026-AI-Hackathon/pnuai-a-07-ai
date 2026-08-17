@@ -193,39 +193,5 @@ INSERT INTO policy_service (service_id, title, summary, support_type, field, is_
    'https://www.gov.kr/policy/9303')
 ON CONFLICT DO NOTHING;
 
--- ============================================================
--- 7. 중대재해 판단 기준 + 판정 함수
---
--- ⚠️ 임시 정의다. DB 파트가 SCHEMA_25_severe_criteria.sql 을 저장소에 올리면
---    이 블록을 지우고 IntegrationTest 의 적재 목록에 그 파일을 넣을 것.
---    (덤프에는 이미 들어 있어서 실서버는 정상 동작한다)
--- 근거: 산업안전보건법 시행규칙 제3조
--- ============================================================
-CREATE TABLE IF NOT EXISTS severe_accident_criteria (
-    criteria_id    INT PRIMARY KEY,
-    label          VARCHAR(30),
-    description    TEXT,
-    legal_basis    VARCHAR(100),
-    ref_law_name   VARCHAR(100),
-    ref_article_no VARCHAR(20)
-);
-
-INSERT INTO severe_accident_criteria VALUES
-  (1, '사망', '사망자가 1명 이상 발생한 재해',
-   '산업안전보건법 시행규칙 제3조', '산업안전보건법 시행규칙', '제3조'),
-  (2, '중상', '3개월 이상의 요양이 필요한 부상자가 동시에 2명 이상 발생한 재해',
-   '산업안전보건법 시행규칙 제3조', '산업안전보건법 시행규칙', '제3조'),
-  (3, '다수재해', '부상자 또는 직업성 질병자가 동시에 10명 이상 발생한 재해',
-   '산업안전보건법 시행규칙 제3조', '산업안전보건법 시행규칙', '제3조')
-ON CONFLICT DO NOTHING;
-
-CREATE OR REPLACE FUNCTION fn_check_severe(
-    p_death INT, p_serious_injury INT, p_injury_or_disease INT)
-RETURNS TABLE(is_severe BOOLEAN, matched TEXT[]) LANGUAGE plpgsql AS $$
-DECLARE m TEXT[] := '{}';
-BEGIN
-    IF p_death >= 1 THEN m := m || ARRAY['사망자 1명 이상']; END IF;
-    IF p_serious_injury >= 2 THEN m := m || ARRAY['3개월 이상 부상자 2명 이상']; END IF;
-    IF p_injury_or_disease >= 10 THEN m := m || ARRAY['부상·질병자 10명 이상']; END IF;
-    RETURN QUERY SELECT array_length(m, 1) IS NOT NULL, m;
-END $$;
+-- 중대재해 판단 기준(severe_accident_criteria)과 fn_check_severe 는
+-- SCHEMA_25_severe_criteria.sql 에서 온다. 여기서 따로 만들지 않는다.
