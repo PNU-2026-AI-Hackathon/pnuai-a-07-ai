@@ -12,7 +12,6 @@ import logging
 
 import numpy as np
 import pandas as pd
-import shap
 
 from app.core import model_loader
 from app.models.risk_schema import (
@@ -48,7 +47,7 @@ def _predict_with_shap(
 
     shap_by_label: dict[str, float] = {}
     try:
-        explainer = shap.TreeExplainer(model)
+        explainer = model_loader.get_explainer(task_name, safe_industry)
         shap_values = explainer.shap_values(X)
         label_to_enc = {v: k for k, v in inv_map.items()}
         for label, _ in top:

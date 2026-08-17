@@ -10,9 +10,11 @@ predict.py는 매 호출마다 파일을 다시 읽어 Booster를 새로 만드�
 
 import sys
 import logging
+from functools import lru_cache
 from pathlib import Path
 
 import lightgbm as lgb
+import shap
 
 from app.core.config import settings
 
@@ -24,6 +26,10 @@ TASK_NAMES: list[str] = ["발생형태", "재해정도_발생형태기반", "질
 
 # models/{태스크명}_{업종명}.txt 의 업종명 suffix (predict.py._safe_ind()가 만드는 값과 동일)
 INDUSTRIES: list[str] = ["건설업", "광업", "기타의사업", "운수_창고_통신업", "제조업", "소규모통합"]
+
+# risk_service._predict_with_shap가 실제로 SHAP을 계산하는 태스크만 워밍업한다.
+# (질병종류/세부질병종류는 모델은 로드하지만 predict_risk가 SHAP까지 쓰진 않는다)
+SHAP_TASK_NAMES: list[str] = ["발생형태", "재해정도_발생형태기반"]
 
 _model_cache: dict[tuple[str, str], lgb.Booster] = {}
 
@@ -62,9 +68,36 @@ def load_all_models() -> None:
     if missing:
         logger.warning("누락된 모델 파일: %s", missing)
 
+    warm_up_explainers()
+
+
+def warm_up_explainers() -> None:
+    """SHAP TreeExplainer를 미리 만들어 캐싱한다.
+
+    lru_cache만 있으면 (task, industry) 조합의 첫 요청이 여전히 느리다(수 초~수십 초).
+    시연 중 첫 요청에서 멈추지 않으려면 서버 기동 시 미리 다 만들어 둬야 한다.
+    """
+    warmed = 0
+    for task_name in SHAP_TASK_NAMES:
+        for industry in INDUSTRIES:
+            if get_explainer(task_name, industry) is not None:
+                warmed += 1
+    logger.info("SHAP TreeExplainer 워밍업 완료: %d개", warmed)
+
 
 def get_model(task_name: str, industry_suffix: str) -> lgb.Booster | None:
     return _model_cache.get((task_name, industry_suffix))
+
+
+@lru_cache(maxsize=None)
+def get_explainer(task_name: str, industry_suffix: str) -> shap.TreeExplainer | None:
+    """SHAP TreeExplainer 는 트리 구조를 미리 분석해두는 비용이 커서, 요청마다 새로 만들면
+    (task, industry) 조합 하나에 수 초~수십 초가 걸린다. 모델은 서버 구동 중 안 바뀌므로
+    조합별로 한 번만 만들어 재사용한다."""
+    model = get_model(task_name, industry_suffix)
+    if model is None:
+        return None
+    return shap.TreeExplainer(model)
 
 
 def is_loaded() -> bool:
