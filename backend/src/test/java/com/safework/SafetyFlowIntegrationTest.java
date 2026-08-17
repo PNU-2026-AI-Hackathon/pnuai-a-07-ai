@@ -35,6 +35,86 @@ class SafetyFlowIntegrationTest extends IntegrationTest {
     }
 
     @Test
+    @DisplayName("내 정보를 수정하면 바뀐 값이 바로 돌아온다")
+    void updatesProfile() throws Exception {
+        String email = "prof-" + System.nanoTime() + "@test.local";
+        String myToken = api.registerAndGetToken(email);
+
+        var result = api.patchJson("/api/auth/me", myToken,
+                Map.of("name", "구현서", "phone", "010-1234-5678"));
+
+        assertThat(result.getResponse().getStatus()).isEqualTo(200);
+        JsonNode body = json(result);
+        assertThat(body.get("name").asText()).isEqualTo("구현서");
+        assertThat(body.get("phone").asText()).isEqualTo("010-1234-5678");
+        // 이메일은 로그인 아이디라 바뀌면 안 된다.
+        assertThat(body.get("email").asText()).isEqualTo(email);
+
+        // 다시 조회해도 남아 있어야 한다(응답만 바꿔 놓고 저장이 안 되는 실수 방지).
+        assertThat(json(api.getWithToken("/api/auth/me", myToken)).get("name").asText())
+                .isEqualTo("구현서");
+    }
+
+    @Test
+    @DisplayName("보내지 않은 항목은 그대로 두고, 빈 연락처는 지운다")
+    void updatesOnlyGivenFields() throws Exception {
+        String myToken = api.registerAndGetToken("part-" + System.nanoTime() + "@test.local");
+        api.patchJson("/api/auth/me", myToken, Map.of("name", "구현서", "phone", "010-1111-2222"));
+
+        // 이름만 보낸다 → 연락처는 유지
+        api.patchJson("/api/auth/me", myToken, Map.of("name", "곽동헌"));
+        JsonNode kept = json(api.getWithToken("/api/auth/me", myToken));
+        assertThat(kept.get("name").asText()).isEqualTo("곽동헌");
+        assertThat(kept.get("phone").asText()).isEqualTo("010-1111-2222");
+
+        // 빈 문자열을 보낸다 → 연락처 삭제
+        api.patchJson("/api/auth/me", myToken, Map.of("phone", ""));
+        assertThat(json(api.getWithToken("/api/auth/me", myToken)).get("phone").isNull()).isTrue();
+    }
+
+    @Test
+    @DisplayName("비밀번호를 바꾸면 새 비밀번호로만 로그인된다")
+    void changesPassword() throws Exception {
+        String email = "pw-" + System.nanoTime() + "@test.local";
+        String myToken = api.registerAndGetToken(email);   // 가입 비밀번호는 test1234
+
+        var changed = api.putJson("/api/auth/me/password", myToken,
+                Map.of("currentPassword", "test1234", "newPassword", "NewPass1234!"));
+        assertThat(changed.getResponse().getStatus()).isEqualTo(204);
+
+        assertThat(api.login(email, "NewPass1234!").getResponse().getStatus()).isEqualTo(200);
+        // 예전 비밀번호로는 못 들어가야 한다.
+        assertThat(api.login(email, "test1234").getResponse().getStatus()).isEqualTo(400);
+    }
+
+    @Test
+    @DisplayName("현재 비밀번호가 틀리면 바꾸지 않는다")
+    void rejectsWrongCurrentPassword() throws Exception {
+        String email = "pw2-" + System.nanoTime() + "@test.local";
+        String myToken = api.registerAndGetToken(email);
+
+        var result = api.putJson("/api/auth/me/password", myToken,
+                Map.of("currentPassword", "틀린비밀번호", "newPassword", "NewPass1234!"));
+
+        assertThat(result.getResponse().getStatus()).isEqualTo(400);
+        assertThat(json(result).get("error").asText()).contains("현재 비밀번호");
+        // 원래 비밀번호가 그대로 살아 있어야 한다.
+        assertThat(api.login(email, "test1234").getResponse().getStatus()).isEqualTo(200);
+    }
+
+    @Test
+    @DisplayName("새 비밀번호가 너무 짧으면 400")
+    void rejectsShortPassword() throws Exception {
+        String myToken = api.registerAndGetToken("pw3-" + System.nanoTime() + "@test.local");
+
+        var result = api.putJson("/api/auth/me/password", myToken,
+                Map.of("currentPassword", "test1234", "newPassword", "짧음"));
+
+        assertThat(result.getResponse().getStatus()).isEqualTo(400);
+        assertThat(json(result).get("fields").has("newPassword")).isTrue();
+    }
+
+    @Test
     @DisplayName("점수·등급이 NULL 이어도 조회와 PDF 가 죽지 않는다")
     void handlesNullScoreAndGrade() throws Exception {
         long workplaceId = api.createManufacturingWorkplace(token);
