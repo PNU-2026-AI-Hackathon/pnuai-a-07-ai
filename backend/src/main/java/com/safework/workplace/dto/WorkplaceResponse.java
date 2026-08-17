@@ -18,6 +18,11 @@ public class WorkplaceResponse {
     private Integer employeeCount;
     private String sizeClass;
     private String address;
+    private String machineType;
+    private Integer machineCount;
+    private String safetyDeviceStatus;
+    private String storageLocation;
+    private String storageMethod;
     private LocalDateTime createdAt;
 
     public static WorkplaceResponse from(Workplace workplace) {
@@ -30,6 +35,11 @@ public class WorkplaceResponse {
                 workplace.getEmployeeCount(),
                 workplace.getSizeClass(),
                 workplace.getAddress(),
+                workplace.getMachineType(),
+                workplace.getMachineCount(),
+                workplace.getSafetyDeviceStatus(),
+                workplace.getStorageLocation(),
+                workplace.getStorageMethod(),
                 workplace.getCreatedAt()
         );
     }

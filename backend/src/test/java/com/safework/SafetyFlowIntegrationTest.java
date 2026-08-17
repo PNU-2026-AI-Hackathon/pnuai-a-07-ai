@@ -115,6 +115,13 @@ class SafetyFlowIntegrationTest extends IntegrationTest {
         assertThat(risk.get("submissionId").asLong()).isEqualTo(body.get("submissionId").asLong());
         assertThat(risk.get("baseComponent").isNull()).isFalse();
         assertThat(risk.get("checklistComponent").isNull()).isFalse();
+
+        var guideResult = api.getWithToken(
+                "/api/workplaces/" + workplaceId + "/prevention-guide", token);
+        assertThat(guideResult.getResponse().getStatus()).isEqualTo(200);
+        JsonNode guide = json(guideResult);
+        assertThat(guide.get("predictions")).isNotEmpty();
+        assertThat(guide.get("predictions").get(0).get("checklist")).isNotEmpty();
     }
 
     @Test

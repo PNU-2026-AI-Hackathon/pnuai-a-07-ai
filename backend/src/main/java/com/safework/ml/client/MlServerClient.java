@@ -14,6 +14,10 @@ import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.LinkedHashMap;
+
+import com.safework.checklist.repository.ChecklistResponseRepository;
+import com.safework.workplace.entity.Workplace;
 
 /**
  * ML 서버(FastAPI) 호출.
@@ -78,6 +82,30 @@ public class MlServerClient {
                 .map(MlServerClient::toRiskPrediction);
     }
 
+    /** 현장 객관정보와 체크리스트 미비 신호를 함께 전달하는 진단용 예측. */
+    public Optional<RiskPrediction> predictRisk(
+            Workplace workplace,
+            List<ChecklistResponseRepository.RiskSignal> riskSignals) {
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("industry", workplace.getIndustry());
+        body.put("sub_industry", workplace.getSubIndustry() == null ? "" : workplace.getSubIndustry());
+        body.put("size_class", workplace.getSizeClass());
+        body.put("region", workplace.getRegion());
+        putIfPresent(body, "machine_type", workplace.getMachineType());
+        putIfPresent(body, "machine_count", workplace.getMachineCount());
+        putIfPresent(body, "safety_device_status", workplace.getSafetyDeviceStatus());
+        putIfPresent(body, "storage_location", workplace.getStorageLocation());
+        putIfPresent(body, "storage_method", workplace.getStorageMethod());
+        body.put("risk_signals", riskSignals.stream().map(signal -> Map.of(
+                "category", signal.category(),
+                "weight", signal.weight(),
+                "deficient_count", signal.deficientCount())).toList());
+
+        return call("/predict/risk", body,
+                new ParameterizedTypeReference<Map<String, Object>>() {})
+                .map(MlServerClient::toRiskPrediction);
+    }
+
     public Optional<List<LawHit>> searchLaw(String query, int topK) {
         return call("/rag/search-law", Map.of("query", query, "top_k", topK),
                 new ParameterizedTypeReference<List<Map<String, Object>>>() {})
@@ -91,6 +119,24 @@ public class MlServerClient {
                         "top_n", topN),
                 new ParameterizedTypeReference<Map<String, Object>>() {})
                 .map(MlServerClient::toCaseResult);
+    }
+
+    public Optional<CaseSearchResult> analyzeCases(String industry, String subIndustry,
+                                                   String diagnosisContext, int topN) {
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("industry", industry);
+        body.put("sub_industry", subIndustry == null ? "" : subIndustry);
+        body.put("top_n", topN);
+        putIfPresent(body, "query_context", diagnosisContext);
+        return call("/analyze/cases", body,
+                new ParameterizedTypeReference<Map<String, Object>>() {})
+                .map(MlServerClient::toCaseResult);
+    }
+
+    private static void putIfPresent(Map<String, Object> target, String key, Object value) {
+        if (value != null && (!(value instanceof String text) || !text.isBlank())) {
+            target.put(key, value);
+        }
     }
 
     private <T> Optional<T> call(String path, Object body, ParameterizedTypeReference<T> type) {

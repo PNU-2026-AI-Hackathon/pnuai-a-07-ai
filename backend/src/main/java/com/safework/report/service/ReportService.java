@@ -1,6 +1,5 @@
 package com.safework.report.service;
 
-import com.safework.prevention.dto.PreventionGuideRequest;
 import com.safework.prevention.service.PreventionGuideService;
 import com.safework.report.config.ReportProperties;
 import com.safework.report.dto.DeficientItemView;
@@ -67,7 +66,7 @@ public class ReportService {
                 .build());
 
         try {
-            byte[] pdf = pdfRenderer.render(renderHtml(workplace, assessment));
+            byte[] pdf = pdfRenderer.render(renderHtml(memberId, workplace, assessment));
             Path path = writeFile(report.getId(), pdf);
             report.markDone(path.toString(), pdf.length);
         } catch (RuntimeException e) {
@@ -101,7 +100,7 @@ public class ReportService {
         }
     }
 
-    private String renderHtml(Workplace workplace, RiskAssessment assessment) {
+    private String renderHtml(Long memberId, Workplace workplace, RiskAssessment assessment) {
         Context context = new Context();
         context.setVariable("fontFamily", properties.getFont().getFamily());
 
@@ -112,6 +111,11 @@ public class ReportService {
         context.setVariable("region", workplace.getRegion());
         context.setVariable("employeeCount", workplace.getEmployeeCount());
         context.setVariable("address", workplace.getAddress());
+        context.setVariable("machineType", workplace.getMachineType());
+        context.setVariable("machineCount", workplace.getMachineCount());
+        context.setVariable("safetyDeviceStatus", workplace.getSafetyDeviceStatus());
+        context.setVariable("storageLocation", workplace.getStorageLocation());
+        context.setVariable("storageMethod", workplace.getStorageMethod());
 
         // SCHEMA_8 이후 점수·등급은 NULL 일 수 있다(베이스라인 매칭 NONE).
         // 리포트는 점수 말고도 미비 항목·근거 법령을 담고 있어서, 점수가 없다고
@@ -130,7 +134,7 @@ public class ReportService {
         context.setVariable("checklistComponent", assessment.getChecklistComponent());
 
         context.setVariable("deficientItems", loadDeficientItems(workplace.getId()));
-        context.setVariable("predictions", loadPredictions(workplace));
+        context.setVariable("predictions", loadPredictions(memberId, workplace.getId()));
 
         return templateEngine.process("report/safety-report", context);
     }
@@ -151,15 +155,10 @@ public class ReportService {
         return List.copyOf(byCode.values());
     }
 
-    private List<PredictionView> loadPredictions(Workplace workplace) {
-        PreventionGuideRequest request = new PreventionGuideRequest();
-        request.setIndustry(workplace.getIndustry());
-        request.setSizeClass(workplace.getSizeClass());
-        request.setRegion(workplace.getRegion());
-        request.setExpectedAccidentCount(REPORT_TOP_ACCIDENTS);
-        request.setItemsPerAccident(REPORT_ITEMS_PER_ACCIDENT);
-
-        return preventionGuideService.getGuide(request).getPredictions().stream()
+    private List<PredictionView> loadPredictions(Long memberId, Long workplaceId) {
+        return preventionGuideService.getGuideForDiagnosis(
+                        memberId, workplaceId, REPORT_TOP_ACCIDENTS, REPORT_ITEMS_PER_ACCIDENT)
+                .getPredictions().stream()
                 .map(PredictionView::new)
                 .toList();
     }

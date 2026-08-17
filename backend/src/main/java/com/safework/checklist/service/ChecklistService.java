@@ -22,6 +22,8 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -46,8 +48,14 @@ public class ChecklistService {
     /** 사업장 업종에 해당하는 점검 문항 목록 */
     public List<ChecklistItemResponse> getItems(Long memberId, Long workplaceId,
                                                  boolean criticalOnly, List<String> workTypes,
-                                                 String category, int limit) {
+                                                 List<String> scopeCodes, String category, int limit) {
         Workplace workplace = findOwnedWorkplace(memberId, workplaceId);
+
+        List<ChecklistScope> scopes = ChecklistScope.parse(scopeCodes);
+        if (!scopes.isEmpty()) {
+            return selectByScopes(workplace.getIndustry(), criticalOnly, scopes, category, limit)
+                    .stream().map(ChecklistItemResponse::new).toList();
+        }
 
         int safeLimit = Math.max(1, Math.min(limit, 50));
         List<ChecklistItem> items = workTypes == null || workTypes.isEmpty()
@@ -59,6 +67,42 @@ public class ChecklistService {
                 .limit(safeLimit)
                 .map(ChecklistItemResponse::new)
                 .toList();
+    }
+
+    /**
+     * 공통 문항 → 같은 업종의 관련 문항 → 다른 업종의 동일 작업 문항 순으로 담는다.
+     * 관련 후보가 적을 때만 업종 고위험 문항으로 보완하고, 결과는 가능한 한 25~35개로 유지한다.
+     */
+    private List<ChecklistItem> selectByScopes(String industry, boolean criticalOnly,
+                                                List<ChecklistScope> scopes, String category, int limit) {
+        int maxItems = Math.max(25, Math.min(limit, 35));
+        int minItems = Math.min(25, maxItems);
+        List<ChecklistItem> industryItems = checklistItemRepository.search(industry, criticalOnly, null, category);
+        List<ChecklistItem> allItems = checklistItemRepository.searchAcrossIndustries(criticalOnly, category);
+        LinkedHashMap<String, ChecklistItem> selected = new LinkedHashMap<>();
+
+        addMatching(selected, industryItems, ChecklistScope::isCommon);
+        addMatching(selected, industryItems, item -> scopes.stream().anyMatch(scope -> scope.matches(item)));
+        addMatching(selected, allItems, item -> scopes.stream().anyMatch(scope -> scope.matches(item)));
+        addMatching(selected, allItems, ChecklistScope::isCommon);
+
+        if (selected.size() < minItems) addUntil(selected, industryItems, minItems);
+        if (selected.size() < minItems) addUntil(selected, allItems, minItems);
+
+        return new ArrayList<>(selected.values()).stream().limit(maxItems).toList();
+    }
+
+    private void addMatching(LinkedHashMap<String, ChecklistItem> target, List<ChecklistItem> source,
+                             java.util.function.Predicate<ChecklistItem> predicate) {
+        source.stream().filter(predicate)
+                .forEach(item -> target.putIfAbsent(item.getItemCode(), item));
+    }
+
+    private void addUntil(LinkedHashMap<String, ChecklistItem> target, List<ChecklistItem> source, int size) {
+        for (ChecklistItem item : source) {
+            if (target.size() >= size) return;
+            target.putIfAbsent(item.getItemCode(), item);
+        }
     }
 
     /** 체크리스트 제출 → 위험도 진단까지 한 번에 수행 */
@@ -94,7 +138,7 @@ public class ChecklistService {
         RiskAssessment assessment = riskAssessmentRepository.findById(assessmentId)
                 .orElseThrow(() -> new IllegalStateException("위험도 진단 결과를 찾을 수 없습니다."));
 
-        attachMlPrediction(workplace, assessment);
+        attachMlPrediction(workplace, assessment, submission.getId());
 
         return new ChecklistSubmitResponse(submission.getId(), totalItems, answeredItems,
                 new RiskAssessmentResponse(assessment));
@@ -104,9 +148,10 @@ public class ChecklistService {
      * 통계 점수 위에 ML 예측(어떤 재해가 날 가능성이 높은지, 얼마나 심각할지)을 얹는다.
      * ML 서버가 없거나 느리면 그냥 콜드스타트 결과만 남는다 — 진단 자체가 실패하면 안 된다.
      */
-    private void attachMlPrediction(Workplace workplace, RiskAssessment assessment) {
-        mlServerClient.predictRisk(workplace.getIndustry(), workplace.getSubIndustry(),
-                        workplace.getSizeClass(), workplace.getRegion())
+    private void attachMlPrediction(Workplace workplace, RiskAssessment assessment, Long submissionId) {
+        List<ChecklistResponseRepository.RiskSignal> riskSignals =
+                responseRepository.findRiskSignals(submissionId);
+        mlServerClient.predictRisk(workplace, riskSignals)
                 .ifPresent(prediction -> assessment.attachMlPrediction(
                         prediction.topRisks(), prediction.severityPrediction(),
                         prediction.modelVersion()));
