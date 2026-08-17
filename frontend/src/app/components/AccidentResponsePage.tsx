@@ -1,5 +1,5 @@
 import { FormEvent, useState, type ReactNode } from "react";
-import { AlertTriangle, BookOpen, Building2, CheckCircle2, Clock3, ExternalLink, FileWarning, Gavel, Info, Landmark, Loader2, Scale, Search, ShieldAlert, Stethoscope } from "lucide-react";
+import { AlertTriangle, BookOpen, CheckCircle2, Clock3, ExternalLink, FileWarning, Gavel, Info, Loader2, Search, ShieldAlert, Stethoscope } from "lucide-react";
 import { useSafety } from "../contexts/SafetyContext";
 import type { AccidentConsultResponse, AccidentResponseGuide, Duty, ImmediateAction } from "../types/safety";
 import { safetyApi } from "../utils/api";
@@ -47,7 +47,7 @@ export default function AccidentResponsePage() {
       <header className="mb-8">
         <div className="mb-3 inline-flex items-center gap-2 rounded-full bg-red-100 px-4 py-2 text-sm font-medium text-red-800"><AlertTriangle className="h-4 w-4" />실제 사고 대처</div>
         <h1 className="text-3xl font-bold text-gray-950 md:text-4xl">사고 내용을 그대로 적어 주세요</h1>
-        <p className="mt-3 text-gray-600">즉시 조치와 사고에 맞는 법령·행정 절차·지원 정책·판례를 함께 안내합니다.</p>
+        <p className="mt-3 text-gray-600">즉시 조치, 법적 의무, 행정 처리와 위반 위험을 근거 자료와 함께 안내합니다.</p>
       </header>
 
       <Tabs defaultValue="consult">
@@ -75,7 +75,7 @@ function ConsultResult({ result, onCorrectType, loading }: { result: AccidentCon
     {result.mode === "RETRIEVAL_ONLY" && result.note && <div className="flex gap-2 rounded-md border border-yellow-200 bg-yellow-50 px-4 py-3 text-sm text-yellow-900"><Info className="h-5 w-5 shrink-0" />{result.note}</div>}
     <ActionTimeline actions={result.immediateActions} />
     <SmartAdviceTabs result={result} />
-    <SimilarCases cases={result.similarCases} note={result.similarCaseNote} />
+    {result.similarCases.length > 0 && <SimilarCases cases={result.similarCases} note={result.similarCaseNote} />}
     <div className="flex gap-2 rounded-md border border-gray-300 bg-gray-50 px-4 py-3 text-sm text-gray-700"><Info className="h-5 w-5 shrink-0" />{result.disclaimer}</div>
   </div>;
 }
@@ -90,7 +90,7 @@ function ActionTimeline({ actions }: { actions: ImmediateAction[] }) {
   return <Card className="border-2"><CardHeader><CardTitle className="flex items-center gap-2 text-xl"><Clock3 className="h-5 w-5 text-red-600" />조치 순서</CardTitle></CardHeader><CardContent className="space-y-5">{[["즉시 조치", immediate], ["후속 처리", followUp]].map(([label, items]) => (items as ImmediateAction[]).length > 0 && <section key={label as string}><h3 className="mb-3 font-semibold text-gray-950">{label as string}</h3><ol className="space-y-4">{(items as ImmediateAction[]).map((action) => <li key={`${action.step}-${action.title}`} className="flex gap-3"><span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-red-700 text-sm font-bold text-white">{action.step}</span><div><p className="font-semibold text-gray-950">{action.title}</p><p className="mt-1 text-sm leading-6 text-gray-700">{action.description}</p>{action.legalBasis && <p className="mt-1 text-xs font-medium text-blue-800">{action.legalBasis}</p>}</div></li>)}</ol></section>)}</CardContent></Card>;
 }
 
-type AdviceTabId = "law" | "administration" | "policy" | "precedent";
+type AdviceTabId = "legal" | "administration" | "penalty";
 
 interface AdviceTab {
   id: AdviceTabId;
@@ -98,19 +98,17 @@ interface AdviceTab {
   count: number;
   description: string;
   icon: ReactNode;
+  tone: "blue" | "indigo" | "orange";
 }
 
 function SmartAdviceTabs({ result }: { result: AccidentConsultResponse }) {
-  const precedents = result.relatedPrecedents ?? [];
-  const supportPrograms = result.supportPrograms ?? [];
   const lawArticles = [...(result.citedArticles ?? [])].sort((left, right) =>
     (right.score ?? right.matchedTerms ?? 0) - (left.score ?? left.matchedTerms ?? 0));
 
   const tabs: AdviceTab[] = [
-    lawArticles.length > 0 ? { id: "law", label: "법령", count: lawArticles.length, description: "사고와 관련도가 높은 조문과 사업주의 법적 의무", icon: <Gavel className="h-5 w-5" /> } : null,
-    result.administrativeSteps.items.length > 0 ? { id: "administration", label: "행정", count: result.administrativeSteps.items.length, description: "사고 후 처리해야 할 신고·제출 절차", icon: <FileWarning className="h-5 w-5" /> } : null,
-    supportPrograms.length > 0 ? { id: "policy", label: "정책", count: supportPrograms.length, description: "사업주가 활용할 수 있는 재발 방지 지원사업", icon: <Landmark className="h-5 w-5" /> } : null,
-    precedents.length > 0 ? { id: "precedent", label: "판례", count: precedents.length, description: "이 사고와 유사한 법원의 판단", icon: <Scale className="h-5 w-5" /> } : null,
+    result.legalObligations.items.length > 0 ? { id: "legal", label: "법적 의무", count: result.legalObligations.items.length, description: "사고 직후 사업주가 지켜야 할 의무와 근거 조문", icon: <Gavel className="h-5 w-5" />, tone: "blue" } : null,
+    result.administrativeSteps.items.length > 0 ? { id: "administration", label: "행정 처리", count: result.administrativeSteps.items.length, description: "신고·제출·보험 등 사고 후 처리 절차", icon: <FileWarning className="h-5 w-5" />, tone: "indigo" } : null,
+    result.penaltyRisk.items.length > 0 ? { id: "penalty", label: "위반 시 위험", count: result.penaltyRisk.items.length, description: "의무를 이행하지 않았을 때 발생할 수 있는 처벌 위험", icon: <AlertTriangle className="h-5 w-5" />, tone: "orange" } : null,
   ].filter((tab): tab is AdviceTab => tab !== null);
 
   if (tabs.length === 0) return null;
@@ -122,7 +120,7 @@ function SmartAdviceTabs({ result }: { result: AccidentConsultResponse }) {
           <BookOpen className="h-5 w-5 text-blue-700" />
           <h2 id="smart-advice-title" className="text-xl font-bold text-gray-950">사고 대응 상세 안내</h2>
         </div>
-        <p className="mt-1 text-sm text-gray-600">필요한 항목만 탭으로 모았습니다. 탭을 선택해 순서대로 확인하세요.</p>
+        <p className="mt-1 text-sm text-gray-600">핵심 대응 내용을 세 영역으로 나눴습니다. 필요한 탭을 선택해 확인하세요.</p>
       </div>
 
       <Tabs defaultValue={tabs[0].id} className="w-full">
@@ -132,7 +130,7 @@ function SmartAdviceTabs({ result }: { result: AccidentConsultResponse }) {
           aria-label="사고 대응 상세 안내 분류"
         >
           {tabs.map((tab) => (
-            <TabsTrigger key={tab.id} value={tab.id} className="min-h-12 gap-2 rounded-lg px-2 text-sm data-[state=active]:bg-white data-[state=active]:shadow-sm">
+            <TabsTrigger key={tab.id} value={tab.id} className={`min-h-12 gap-2 rounded-lg px-2 text-sm data-[state=active]:shadow-sm ${tab.tone === "blue" ? "data-[state=active]:bg-blue-50" : tab.tone === "indigo" ? "data-[state=active]:bg-indigo-50" : "data-[state=active]:bg-orange-50"}`}>
               <span className="hidden sm:inline-flex">{tab.icon}</span>
               <span>{tab.label}</span>
               <span className="rounded-full bg-gray-200 px-2 py-0.5 text-xs font-semibold text-gray-700">{tab.count}</span>
@@ -143,15 +141,19 @@ function SmartAdviceTabs({ result }: { result: AccidentConsultResponse }) {
         {tabs.map((tab) => (
           <TabsContent key={tab.id} value={tab.id} className="mt-4 focus-visible:outline-none">
             <AdvicePanel tab={tab}>
-              {tab.id === "law" && <LawAdvice result={result} articles={lawArticles} />}
+              {tab.id === "legal" && <LegalAdvice result={result} articles={lawArticles} />}
               {tab.id === "administration" && (
                 <div className="p-5 md:p-6">
                   {result.administrativeSteps.guidance && <p className="mb-4 text-sm leading-6 text-gray-700">{result.administrativeSteps.guidance}</p>}
-                  <DutyList items={result.administrativeSteps.items} showAdministrativeDetails />
+                  <DutyList items={result.administrativeSteps.items} showAdministrativeDetails tone="administration" />
                 </div>
               )}
-              {tab.id === "policy" && <PolicyList programs={supportPrograms} />}
-              {tab.id === "precedent" && <PrecedentList precedents={precedents} />}
+              {tab.id === "penalty" && (
+                <div className="p-5 md:p-6">
+                  {result.penaltyRisk.guidance && <p className="mb-4 text-sm leading-6 text-gray-700">{result.penaltyRisk.guidance}</p>}
+                  <DutyList items={result.penaltyRisk.items} tone="danger" />
+                </div>
+              )}
             </AdvicePanel>
           </TabsContent>
         ))}
@@ -161,40 +163,35 @@ function SmartAdviceTabs({ result }: { result: AccidentConsultResponse }) {
 }
 
 function AdvicePanel({ tab, children }: { tab: AdviceTab; children: ReactNode }) {
+  const toneStyles = {
+    blue: { border: "border-blue-200", header: "border-blue-200 bg-blue-100/70", body: "bg-blue-50/60", icon: "text-blue-700" },
+    indigo: { border: "border-indigo-200", header: "border-indigo-200 bg-indigo-100/70", body: "bg-indigo-50/60", icon: "text-indigo-700" },
+    orange: { border: "border-orange-200", header: "border-orange-200 bg-orange-100/70", body: "bg-orange-50/60", icon: "text-orange-700" },
+  }[tab.tone];
   return (
-    <Card className="overflow-hidden border-2 border-blue-100 shadow-sm">
-      <CardHeader className="border-b border-gray-100 bg-gradient-to-r from-blue-50 to-white">
+    <Card className={`overflow-hidden border-2 shadow-sm ${toneStyles.border}`}>
+      <CardHeader className={`border-b ${toneStyles.header}`}>
         <div className="flex items-start gap-3">
-          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white text-blue-700 shadow-sm">{tab.icon}</span>
+          <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white shadow-sm ${toneStyles.icon}`}>{tab.icon}</span>
           <div>
             <CardTitle className="text-lg">{tab.label}</CardTitle>
             <CardDescription className="mt-1">{tab.description}</CardDescription>
           </div>
         </div>
       </CardHeader>
-      <CardContent className="p-0">{children}</CardContent>
+      <CardContent className={`p-0 ${toneStyles.body}`}>{children}</CardContent>
     </Card>
   );
 }
 
-function LawAdvice({ result, articles }: { result: AccidentConsultResponse; articles: AccidentConsultResponse["citedArticles"] }) {
+function LegalAdvice({ result, articles }: { result: AccidentConsultResponse; articles: AccidentConsultResponse["citedArticles"] }) {
   return (
     <div className="divide-y divide-gray-200">
-      {(result.legalObligations.guidance || result.legalObligations.items.length > 0) && (
-        <section className="p-5 md:p-6">
-          <h3 className="font-bold text-gray-950">사업주가 지켜야 할 의무</h3>
-          {result.legalObligations.guidance && <p className="mt-2 text-sm leading-6 text-gray-700">{result.legalObligations.guidance}</p>}
-          <DutyList items={result.legalObligations.items} />
-        </section>
-      )}
-      {result.penaltyRisk.items.length > 0 && (
-        <section className="bg-orange-50/50 p-5 md:p-6">
-          <div className="flex items-center gap-2"><AlertTriangle className="h-5 w-5 text-orange-700" /><h3 className="font-bold text-gray-950">위반 시 위험</h3></div>
-          {result.penaltyRisk.guidance && <p className="mt-2 text-sm leading-6 text-gray-700">{result.penaltyRisk.guidance}</p>}
-          <DutyList items={result.penaltyRisk.items} />
-        </section>
-      )}
       <section className="p-5 md:p-6">
+        {result.legalObligations.guidance && <p className="text-sm leading-6 text-gray-700">{result.legalObligations.guidance}</p>}
+        <DutyList items={result.legalObligations.items} />
+      </section>
+      {articles.length > 0 && <section className="p-5 md:p-6">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <h3 className="font-bold text-gray-950">근거 조문</h3>
           <span className="text-xs font-medium text-blue-700">관련도순</span>
@@ -208,19 +205,20 @@ function LawAdvice({ result, articles }: { result: AccidentConsultResponse; arti
             </li>
           ))}
         </ul>
-      </section>
+      </section>}
     </div>
   );
 }
 
-function DutyList({ items, showAdministrativeDetails = false }: { items: Duty[]; showAdministrativeDetails?: boolean }) {
+function DutyList({ items, showAdministrativeDetails = false, tone = "default" }: { items: Duty[]; showAdministrativeDetails?: boolean; tone?: "default" | "administration" | "danger" }) {
   if (items.length === 0) return null;
+  const numberTone = tone === "danger" ? "bg-orange-100 text-orange-800" : tone === "administration" ? "bg-indigo-100 text-indigo-800" : "bg-blue-100 text-blue-800";
   return (
     <ol className="mt-3 divide-y divide-gray-200">
       {items.map((item, index) => (
         <li key={`${item.title}-${item.legalBasis}-${index}`} className="py-4 first:pt-0 last:pb-0">
           <div className="flex gap-3">
-            <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-blue-100 text-xs font-bold text-blue-800">{index + 1}</span>
+            <span className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-bold ${numberTone}`}>{index + 1}</span>
             <div className="min-w-0 flex-1">
               <p className="font-semibold text-gray-950">{item.title}</p>
               <p className="mt-1 text-sm leading-6 text-gray-700">{item.detail}</p>
@@ -240,47 +238,6 @@ function DutyList({ items, showAdministrativeDetails = false }: { items: Duty[];
         </li>
       ))}
     </ol>
-  );
-}
-
-function PolicyList({ programs }: { programs: AccidentConsultResponse["supportPrograms"] }) {
-  return (
-    <ul className="divide-y divide-gray-200">
-      {programs.map((program) => (
-        <li key={`${program.title}-${program.agency}`} className="p-5 md:p-6">
-          <div className="flex items-start gap-3">
-            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-teal-100 text-teal-700"><Building2 className="h-5 w-5" /></span>
-            <div className="min-w-0 flex-1">
-              <p className="font-semibold text-gray-950">{program.title}</p>
-              <p className="mt-1 text-xs font-medium text-teal-700">{program.agency}</p>
-              {program.relevance && <p className="mt-3 rounded-md bg-teal-50 px-3 py-2 text-sm text-teal-900">이 사업장에 맞는 이유: {program.relevance}</p>}
-              <p className="mt-3 text-sm leading-6 text-gray-700">{program.summary}</p>
-              <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
-                {program.deadline && <span className="text-xs font-semibold text-red-700">신청 기한: {program.deadline}</span>}
-                {program.url && <a href={program.url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-sm font-semibold text-blue-700 hover:underline">지원사업 확인<ExternalLink className="h-3.5 w-3.5" /></a>}
-              </div>
-            </div>
-          </div>
-        </li>
-      ))}
-    </ul>
-  );
-}
-
-function PrecedentList({ precedents }: { precedents: AccidentConsultResponse["relatedPrecedents"] }) {
-  return (
-    <ul className="divide-y divide-gray-200">
-      {precedents.map((precedent) => (
-        <li key={`${precedent.caseName}-${precedent.reference}`} className="p-5 md:p-6">
-          <div className="flex flex-wrap items-start justify-between gap-2">
-            <div><p className="font-semibold text-gray-950">{precedent.caseName}</p><p className="mt-1 text-xs font-medium text-violet-700">{precedent.court}{precedent.reference ? ` · ${precedent.reference}` : ""}</p></div>
-            {precedent.url && <a href={precedent.url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-sm font-semibold text-blue-700 hover:underline">원문 보기<ExternalLink className="h-3.5 w-3.5" /></a>}
-          </div>
-          {precedent.relevance && <p className="mt-3 rounded-md bg-violet-50 px-3 py-2 text-sm text-violet-900">유사한 점: {precedent.relevance}</p>}
-          <p className="mt-3 text-sm leading-6 text-gray-700">{precedent.summary}</p>
-        </li>
-      ))}
-    </ul>
   );
 }
 
