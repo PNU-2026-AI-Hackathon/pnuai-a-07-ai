@@ -231,6 +231,28 @@ export interface Duty {
   detail: string;
   deadline: string | null;
   legalBasis: string | null;
+  agency?: string | null;
+  formName?: string | null;
+  formUrl?: string | null;
+  penalty?: string | null;
+}
+
+export interface AccidentPrecedent {
+  caseName: string;
+  court: string;
+  reference: string | null;
+  relevance: string;
+  summary: string;
+  url: string;
+}
+
+export interface AccidentSupportProgram {
+  title: string;
+  agency: string;
+  relevance: string;
+  summary: string;
+  deadline: string | null;
+  url: string;
 }
 
 export interface GuidanceSection {
@@ -259,6 +281,8 @@ export interface AccidentConsultResponse {
   legalObligations: GuidanceSection;
   administrativeSteps: GuidanceSection;
   penaltyRisk: GuidanceSection;
+  relatedPrecedents: AccidentPrecedent[];
+  supportPrograms: AccidentSupportProgram[];
   citedArticles: LawArticle[];
   similarCases: AccidentSimilarCase[];
   similarCaseNote: string | null;
