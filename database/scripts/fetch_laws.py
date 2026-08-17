@@ -42,13 +42,18 @@ BASE = "http://www.law.go.kr/DRF"
 SEARCH_URL = BASE + "/lawSearch.do"
 SERVICE_URL = BASE + "/lawService.do"
 
-# 선정목록 문서의 핵심 5개 법령 (정확한 법령명으로 검색)
+# 대상 법령 (정확한 법령명으로 검색)
 TARGET_LAWS = [
+    # --- 산업안전 핵심 5개 ---
     "산업안전보건법",
     "산업안전보건법 시행령",
     "산업안전보건법 시행규칙",
     "산업안전보건기준에 관한 규칙",
     "중대재해 처벌 등에 관한 법률",
+    # --- 산재보상 (사후대응 근거 보강: 요양급여 신청 등) ---
+    "산업재해보상보험법",
+    "산업재해보상보험법 시행령",
+    "산업재해보상보험법 시행규칙",
 ]
 
 HERE = os.path.dirname(os.path.abspath(__file__))
