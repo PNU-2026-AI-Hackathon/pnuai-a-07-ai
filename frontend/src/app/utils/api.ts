@@ -15,6 +15,7 @@ import type {
   PreventionGuideResponse,
   ReferenceData,
   ReportCreateResponse,
+  RiskScopeCode,
   RiskAssessment,
   SimilarCaseResponse,
   Workplace,
@@ -97,11 +98,14 @@ export const safetyApi = {
     return apiFetch<PreventionGuideResponse>(`/api/prevention-guide?${params}`);
   },
 
+  getDiagnosisPreventionGuide: (workplaceId: number) =>
+    apiFetch<PreventionGuideResponse>(`/api/workplaces/${workplaceId}/prevention-guide`),
+
   getReferences: () => apiFetch<ReferenceData>("/api/references"),
 
-  getChecklistItems: (workplaceId: number, criticalOnly = true, workTypes: string[] = [], limit = 30) => {
+  getChecklistItems: (workplaceId: number, criticalOnly = true, riskScopes: RiskScopeCode[] = [], limit = 35) => {
     const params = new URLSearchParams({ criticalOnly: String(criticalOnly), limit: String(limit) });
-    workTypes.forEach((workType) => params.append("workType", workType));
+    riskScopes.forEach((scope) => params.append("scope", scope));
     return apiFetch<ChecklistItem[]>(`/api/workplaces/${workplaceId}/checklist-items?${params}`);
   },
 

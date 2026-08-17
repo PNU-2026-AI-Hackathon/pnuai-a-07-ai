@@ -10,6 +10,7 @@ class AnalyzeCasesRequest(BaseModel):
     industry: str = Field(..., description="code_industry.industry (예: 제조업)")
     sub_industry: str = Field(..., description="KOSHA 종업종 문자열")
     top_n: int = Field(5, ge=1, le=20)
+    query_context: str | None = Field(None, description="진단 결과·미비 항목을 합친 검색 문맥")
 
 
 class SimilarCase(BaseModel):
@@ -31,4 +32,6 @@ def analyze_cases(req: AnalyzeCasesRequest) -> dict:
     sif_case는 실데이터상 건설업/제조업만 있어서, 다른 업종으로 요청해도 제조업 사례로
     폴백된다 (아래 README 참고). 첫 호출 시 인덱스가 없으면 자동으로 구축한다.
     """
-    return case_service.analyze_similar_cases(req.industry, req.sub_industry, req.top_n)
+    return case_service.analyze_similar_cases(
+        req.industry, req.sub_industry, req.top_n, req.query_context
+    )

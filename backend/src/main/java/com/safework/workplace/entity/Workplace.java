@@ -42,9 +42,26 @@ public class Workplace extends BaseTimeEntity {
 
     private String address;            // 상세 주소
 
+    @Column(name = "machine_type")
+    private String machineType;        // 주요 기계·설비 종류
+
+    @Column(name = "machine_count")
+    private Integer machineCount;      // 주요 기계·설비 총수
+
+    @Column(name = "safety_device_status")
+    private String safetyDeviceStatus; // INSTALLED/PARTIAL/NONE/UNKNOWN
+
+    @Column(name = "storage_location")
+    private String storageLocation;    // 자재·물건 적재 위치
+
+    @Column(name = "storage_method")
+    private String storageMethod;      // 적재 방식 또는 높이
+
     public void update(String industry, String subIndustry, String region,
                         Integer employeeCount, String sizeClass,
-                        String name, String address) {
+                        String name, String address, String machineType,
+                        Integer machineCount, String safetyDeviceStatus,
+                        String storageLocation, String storageMethod) {
         this.industry = industry;
         this.subIndustry = subIndustry;
         this.region = region;
@@ -52,5 +69,10 @@ public class Workplace extends BaseTimeEntity {
         this.sizeClass = sizeClass;
         this.name = name;
         this.address = address;
+        this.machineType = machineType;
+        this.machineCount = machineCount;
+        this.safetyDeviceStatus = safetyDeviceStatus;
+        this.storageLocation = storageLocation;
+        this.storageMethod = storageMethod;
     }
 }

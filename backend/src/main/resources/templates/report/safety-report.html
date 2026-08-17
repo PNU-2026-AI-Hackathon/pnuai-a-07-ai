@@ -93,6 +93,11 @@
             <th>지역</th><td th:text="${region}">-</td></tr>
         <tr><th>근로자 수</th><td th:text="${employeeCount} != null ? ${employeeCount} + '명' : '-'">-</td>
             <th>주소</th><td th:text="${address} ?: '-'">-</td></tr>
+        <tr><th>주요 기계·설비</th><td th:text="${machineType} ?: '-'">-</td>
+            <th>설비 수</th><td th:text="${machineCount} != null ? ${machineCount} + '대' : '-'">-</td></tr>
+        <tr><th>안전장치 상태</th><td th:text="${safetyDeviceStatus} ?: '-'">-</td>
+            <th>적재 위치·방식</th><td><span th:text="${storageLocation} ?: '-'">-</span> /
+                <span th:text="${storageMethod} ?: '-'">-</span></td></tr>
     </table>
 </div>
 
@@ -156,12 +161,12 @@
     </table>
 </div>
 
-<!-- 4. 예상 재해유형별 예방 조치 -->
+<!-- 4. 진단 위험유형별 예방 조치 -->
 <div class="section">
-    <h2>4. 예상 재해유형별 예방 조치</h2>
+    <h2>4. 진단 위험유형별 예방 조치</h2>
 
     <div th:if="${#lists.isEmpty(predictions)}" class="empty">
-        예상 재해유형 정보를 산출하지 못했습니다.
+        체크리스트에서 확인된 중대한 미비 항목이 없습니다.
     </div>
 
     <div th:each="p : ${predictions}" class="accident-block">
@@ -171,7 +176,7 @@
                 <th colspan="2">
                     <span th:text="|${p.rank}순위. ${p.accidentType}|">-</span>
                     <span class="muted" style="font-weight:normal;"
-                          th:text="|(발생 비율 ${p.ratioPercent}% · 사망 비율 ${p.deathRatioPercent}%)|">-</span>
+                          th:text="|(미비 위험 비중 ${p.ratioPercent}%)|">-</span>
                 </th>
             </tr>
             </thead>

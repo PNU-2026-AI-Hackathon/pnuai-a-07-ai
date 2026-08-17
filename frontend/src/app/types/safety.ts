@@ -20,6 +20,11 @@ export interface WorkplaceRequest {
   region: string;
   employeeCount?: number;
   address?: string;
+  machineType?: string;
+  machineCount?: number;
+  safetyDeviceStatus?: "INSTALLED" | "PARTIAL" | "NONE" | "UNKNOWN";
+  storageLocation?: string;
+  storageMethod?: string;
 }
 
 export interface Workplace extends WorkplaceRequest {
@@ -27,6 +32,11 @@ export interface Workplace extends WorkplaceRequest {
   subIndustry: string | null;
   employeeCount: number | null;
   address: string | null;
+  machineType: string | null;
+  machineCount: number | null;
+  safetyDeviceStatus: "INSTALLED" | "PARTIAL" | "NONE" | "UNKNOWN" | null;
+  storageLocation: string | null;
+  storageMethod: string | null;
   createdAt: string;
 }
 
@@ -35,6 +45,18 @@ export interface WorkTypeReference {
   workType: string;
   itemCount: number;
 }
+
+export type RiskScopeCode =
+  | "MACHINE_EQUIPMENT"
+  | "VEHICLE_HANDLING"
+  | "WORK_AT_HEIGHT"
+  | "ELECTRICAL"
+  | "HOT_WORK"
+  | "CHEMICAL"
+  | "CONFINED_SPACE"
+  | "CONSTRUCTION"
+  | "STORAGE_LOGISTICS"
+  | "GENERAL";
 
 export interface ReferenceData {
   workTypes: WorkTypeReference[];
@@ -81,6 +103,7 @@ export interface TopRisk {
   type: string;
   probability: number;
   shap_value: number | null;
+  basis?: string | null;
 }
 
 export interface SeverityPrediction {
@@ -156,6 +179,7 @@ export interface SimilarCaseResponse {
   topKeywords: string[];
   totalCount: number;
   cases: SimilarCase[];
+  recommendationBasis: string | null;
   note: string | null;
 }
 

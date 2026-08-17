@@ -1,4 +1,4 @@
-import { createBrowserRouter } from "react-router";
+import { createBrowserRouter, Navigate } from "react-router";
 import AuthPage from "./components/AuthPage";
 import ProtectedRoute from "./components/ProtectedRoute";
 import Root from "./components/Root";
@@ -20,9 +20,10 @@ export const router = createBrowserRouter(
           Component: Root,
           children: [
             { index: true, Component: Step1Input },
-            { path: "report", Component: Step2Report },
+            { path: "report", element: <Navigate to="/checklist" replace /> },
             { path: "cases", Component: Step3Cases },
             { path: "checklist", Component: Step4Checklist },
+            { path: "prevention", Component: Step2Report },
             { path: "laws", Component: LawAssistantPage },
             { path: "accident-response", Component: AccidentResponsePage },
           ],

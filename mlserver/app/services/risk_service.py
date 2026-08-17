@@ -90,13 +90,97 @@ def predict_risk(req: RiskPredictRequest) -> RiskPredictResponse:
     top_accident, accident_shap = _predict_with_shap("발생형태", ACCIDENT_TYPE_INV, safe, row, req.top_k)
     top_severity, _ = _predict_with_shap("재해정도_발생형태기반", INJURY_INV, safe, row, req.top_k)
 
-    top_risks = [
-        TopRisk(type=label, probability=prob, shap_value=accident_shap.get(label))
-        for label, prob in top_accident
-    ]
+    top_risks = _blend_checklist_signals(top_accident, accident_shap, req)
     severity_prediction = [SeverityPrediction(label=label, probability=prob) for label, prob in top_severity]
 
     return RiskPredictResponse(
         top_risks=top_risks,
         severity_prediction=severity_prediction,
     )
+
+
+def _blend_checklist_signals(
+    model_risks: list[tuple[str, float]],
+    accident_shap: dict[str, float],
+    req: RiskPredictRequest,
+) -> list[TopRisk]:
+    """모델 분포와 실제 현장 미비 신호를 결합해 설명 가능한 위험순위를 만든다.
+
+    새 현장 필드는 기존 학습모델의 특성이 아니므로 학습 확률이라고 주장하지 않는다.
+    모델·체크리스트·현장 상세정보를 위험 신호로 정규화하며, 통계적 발생확률로
+    사용하지 않는다.
+    """
+    profile_scores = _profile_risk_signals(req)
+    has_checklist = bool(req.risk_signals)
+    model_ratio = 0.55 if has_checklist else 0.85
+    checklist_ratio = 0.35 if has_checklist else 0.0
+    profile_ratio = 0.10 if has_checklist else 0.15
+
+    scores: dict[str, float] = {label: prob * model_ratio for label, prob in model_risks}
+    counts: dict[str, int] = {}
+    total_weight = sum(signal.weight for signal in req.risk_signals)
+    if total_weight <= 0:
+        total_weight = float(sum(max(signal.deficient_count, 1) for signal in req.risk_signals))
+
+    for signal in req.risk_signals:
+        signal_weight = signal.weight if signal.weight > 0 else float(max(signal.deficient_count, 1))
+        scores[signal.category] = scores.get(signal.category, 0.0) + checklist_ratio * signal_weight / total_weight
+        counts[signal.category] = signal.deficient_count
+
+    profile_total = sum(profile_scores.values())
+    if profile_total > 0:
+        for category, score in profile_scores.items():
+            scores[category] = scores.get(category, 0.0) + profile_ratio * score / profile_total
+
+    total = sum(scores.values()) or 1.0
+    ranked = sorted(scores.items(), key=lambda item: item[1], reverse=True)[: req.top_k]
+    return [
+        TopRisk(
+            type=label,
+            probability=score / total,
+            shap_value=accident_shap.get(label),
+            basis=_risk_basis(label, counts, profile_scores),
+        )
+        for label, score in ranked
+    ]
+
+
+def _profile_risk_signals(req: RiskPredictRequest) -> dict[str, float]:
+    """현장 상세정보를 보정용 위험 신호로 변환한다(학습 확률이 아님)."""
+    scores: dict[str, float] = {}
+    machine = (req.machine_type or "").lower()
+    storage = f"{req.storage_location or ''} {req.storage_method or ''}".lower()
+    safety_factor = {
+        "INSTALLED": 0.5,
+        "PARTIAL": 1.2,
+        "NONE": 1.8,
+        "UNKNOWN": 1.0,
+    }.get(req.safety_device_status or "UNKNOWN", 1.0)
+    count_factor = 1.25 if (req.machine_count or 0) >= 5 else 1.0
+
+    mappings = {
+        "끼임": ("프레스", "절단", "컨베이어", "롤러", "압축", "성형"),
+        "부딪힘": ("지게차", "차량", "운반", "굴착기"),
+        "떨어짐": ("사다리", "고소", "비계", "리프트"),
+    }
+    for category, keywords in mappings.items():
+        matches = sum(1 for keyword in keywords if keyword in machine)
+        if matches:
+            scores[category] = scores.get(category, 0.0) + matches * safety_factor * count_factor
+
+    if any(keyword in storage for keyword in ("2단", "3단", "다단", "높이", "선반", "고층")):
+        scores["무너짐"] = scores.get("무너짐", 0.0) + 1.2
+    if any(keyword in storage for keyword in ("통로", "출입구", "이동로")):
+        scores["부딪힘"] = scores.get("부딪힘", 0.0) + 0.8
+        scores["넘어짐"] = scores.get("넘어짐", 0.0) + 0.6
+    return scores
+
+
+def _risk_basis(label: str, counts: dict[str, int], profile_scores: dict[str, float]) -> str:
+    bases = []
+    if label in counts:
+        bases.append(f"체크리스트 미비 {counts[label]}건")
+    if label in profile_scores:
+        bases.append("기계·안전장치·적재 조건")
+    bases.append("동종 사업장 예측")
+    return "과 ".join(bases) + "을 함께 반영"

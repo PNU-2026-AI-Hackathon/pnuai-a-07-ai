@@ -67,7 +67,8 @@ public abstract class IntegrationTest {
             "SCHEMA_24_advice_policy_fix.sql",
             // 중대재해 판단 기준(산안법 시행규칙 제3조) + fn_check_severe.
             // 사고 대처에서 "직접 대조하세요" 대신 숫자로 판정한다.
-            "SCHEMA_25_severe_criteria.sql"
+            "SCHEMA_25_severe_criteria.sql",
+            "SCHEMA_26_diagnosis_flow.sql"
     );
 
     static final PostgreSQLContainer<?> POSTGRES =
