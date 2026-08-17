@@ -17,27 +17,42 @@ public class SimilarCaseResponse {
     private final List<String> topKeywords;
     private final int totalCount;
     private final List<CaseDto> cases;
+    /** 업종만이 아니라 어떤 진단정보가 검색에 반영됐는지 설명한다. */
+    private final String recommendationBasis;
     /** 결과가 비었을 때 사유. 정상이면 null */
     private final String note;
 
     private SimilarCaseResponse(String industry, String subIndustry, List<String> topKeywords,
-                                List<CaseDto> cases, String note) {
+                                List<CaseDto> cases, String recommendationBasis, String note) {
         this.industry = industry;
         this.subIndustry = subIndustry;
         this.topKeywords = topKeywords;
         this.totalCount = cases.size();
         this.cases = cases;
+        this.recommendationBasis = recommendationBasis;
         this.note = note;
     }
 
     public static SimilarCaseResponse of(String industry, String subIndustry,
                                          MlServerClient.CaseSearchResult result) {
         return new SimilarCaseResponse(industry, subIndustry, result.topKeywords(),
-                result.similarCases().stream().map(CaseDto::new).toList(), null);
+                result.similarCases().stream().map(CaseDto::new).toList(), null, null);
+    }
+
+    public static SimilarCaseResponse of(String industry, String subIndustry,
+                                         String recommendationBasis,
+                                         MlServerClient.CaseSearchResult result) {
+        return new SimilarCaseResponse(industry, subIndustry, result.topKeywords(),
+                result.similarCases().stream().map(CaseDto::new).toList(), recommendationBasis, null);
     }
 
     public static SimilarCaseResponse unavailable(String industry, String subIndustry, String note) {
-        return new SimilarCaseResponse(industry, subIndustry, List.of(), List.of(), note);
+        return new SimilarCaseResponse(industry, subIndustry, List.of(), List.of(), null, note);
+    }
+
+    public static SimilarCaseResponse unavailable(String industry, String subIndustry,
+                                                  String recommendationBasis, String note) {
+        return new SimilarCaseResponse(industry, subIndustry, List.of(), List.of(), recommendationBasis, note);
     }
 
     @Getter

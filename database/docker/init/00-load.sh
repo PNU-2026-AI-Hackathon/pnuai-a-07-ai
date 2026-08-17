@@ -62,6 +62,8 @@ run "$SCHEMA_DIR/SCHEMA_19_ml_features.sql"
 run "$SCHEMA_DIR/SCHEMA_20_hybrid_enum.sql"
 run "$SCHEMA_DIR/SCHEMA_21_fix_submission_id.sql"   # fn_coldstart_assess 가 submission_id 채움
 run "$SCHEMA_DIR/SCHEMA_22_fix_assess_columns.sql"  # 21 이 쓰는 컬럼 추가 (21 없이 실행하면 진단 실패)
+run "$SCHEMA_DIR/SCHEMA_25_severe_criteria.sql"     # 중대재해 판단 기준 + fn_check_severe
+run "$SCHEMA_DIR/SCHEMA_26_diagnosis_flow.sql"      # 현장 세부정보 저장 컬럼
 
 echo "=== 적재 완료 ==="
 psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "

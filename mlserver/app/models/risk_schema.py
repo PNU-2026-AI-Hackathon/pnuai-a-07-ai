@@ -7,8 +7,9 @@ match_level)를 이 응답에서 제거했다. 백엔드가 이미 DB의 fn_cold
 어긋나는 문제가 생긴다(실제로 체크리스트 20→835문항 교체 때 내 파이썬 버전만 구버전에
 멈춰있는 일이 있었음). 채점 공식은 DB 한 곳에만 두기로 백엔드와 합의(2026-07-29).
 
-그래서 /predict/risk는 이제 순수하게 LightGBM 예측(top_risks/severity_prediction)만
-담당한다 — checklist_scores도 콜드스타트 채점에만 쓰였던 필드라 요청에서 같이 제거했다.
+그래서 /predict/risk의 점수 계산 책임은 제거했다. 기존 checklist_scores는 삭제했고,
+2026-08 안전진단 흐름 개편에서 재해유형 위험순위 보정용 risk_signals만 다시 추가했다.
+최종 위험점수는 계속 DB 함수가 단독으로 계산한다.
 """
 
 from pydantic import BaseModel, Field
@@ -37,11 +38,28 @@ class RiskPredictRequest(BaseModel):
     year: int = Field(2024, description="예측 기준 연도")
     top_k: int = Field(3, ge=1, le=10, description="발생형태/재해정도 후보 개수")
 
+    machine_type: str | None = Field(None, description="주요 기계·설비 종류")
+    machine_count: int | None = Field(None, ge=0, description="주요 기계·설비 총수")
+    safety_device_status: str | None = Field(None, description="INSTALLED/PARTIAL/NONE/UNKNOWN")
+    storage_location: str | None = Field(None, description="자재·물건 적재 위치")
+    storage_method: str | None = Field(None, description="적재 방식 또는 높이")
+    risk_signals: list["ChecklistRiskSignal"] = Field(
+        default_factory=list,
+        description="체크리스트 NO 응답을 재해유형별로 집계한 위험 신호",
+    )
+
+
+class ChecklistRiskSignal(BaseModel):
+    category: str
+    weight: float = Field(ge=0)
+    deficient_count: int = Field(ge=0)
+
 
 class TopRisk(BaseModel):
     type: str = Field(..., description="발생형태 라벨 (예: 끼임)")
     probability: float
     shap_value: float | None = Field(None, description="해당 클래스에 대한 SHAP 기여도 (모델 확신도 설명용)")
+    basis: str | None = Field(None, description="위험순위 산출 근거")
 
 
 class SeverityPrediction(BaseModel):
@@ -55,4 +73,4 @@ class RiskPredictResponse(BaseModel):
         default_factory=list, description="LightGBM 재해정도(발생형태기반) 예측 top-k"
     )
 
-    model_version: str = "lightgbm-2026.07"
+    model_version: str = "lightgbm-checklist-hybrid-2026.08"

@@ -26,18 +26,19 @@ public class ChecklistController {
     private final ChecklistService checklistService;
 
     @Operation(summary = "점검 문항 목록 조회",
-            description = "사업장 업종에 해당하는 점검 문항을 반환합니다. 문항 수가 많으므로 필터 사용을 권장합니다.")
+            description = "업종과 STEP 1 작업·위험 범주를 기준으로 SIF를 25~35개로 선별합니다.")
     @GetMapping("/checklist-items")
     public ResponseEntity<List<ChecklistItemResponse>> getItems(
             Authentication authentication,
             @PathVariable Long workplaceId,
             @RequestParam(defaultValue = "false") boolean criticalOnly,
             @RequestParam(required = false) List<String> workType,
+            @RequestParam(required = false) List<String> scope,
             @RequestParam(required = false) String category,
-            @RequestParam(defaultValue = "30") int limit) {
+            @RequestParam(defaultValue = "35") int limit) {
         Long memberId = (Long) authentication.getPrincipal();
         return ResponseEntity.ok(
-                checklistService.getItems(memberId, workplaceId, criticalOnly, workType, category, limit));
+                checklistService.getItems(memberId, workplaceId, criticalOnly, workType, scope, category, limit));
     }
 
     @Operation(summary = "체크리스트 제출 (위험도 진단 포함)",

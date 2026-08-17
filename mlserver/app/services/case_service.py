@@ -71,11 +71,16 @@ def _load_index() -> tuple[faiss.Index, pd.DataFrame]:
     return index, meta
 
 
-def analyze_similar_cases(industry: str, sub_industry: str, top_n: int = 5) -> dict:
+def analyze_similar_cases(
+    industry: str,
+    sub_industry: str,
+    top_n: int = 5,
+    query_context: str | None = None,
+) -> dict:
     index, meta = _load_index()
     target_div = _map_industry_div(industry)
 
-    query = f"{sub_industry} 관련 사고"
+    query = query_context.strip() if query_context and query_context.strip() else f"{sub_industry} 관련 사고"
     query_vec = _encode([query])
 
     # industry_div로 걸러야 해서, 필터링 후에도 top_n이 채워지도록 넉넉히 오버페치한다.

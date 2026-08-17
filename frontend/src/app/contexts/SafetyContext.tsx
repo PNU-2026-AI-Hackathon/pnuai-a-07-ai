@@ -4,10 +4,11 @@ import type {
   ChecklistItem,
   Me,
   PreventionGuideResponse,
+  RiskScopeCode,
   RiskAssessment,
   Workplace,
 } from "../types/safety";
-import { previewChecklistItems, previewPreventionGuide, previewWorkplace } from "../utils/devPreview";
+import { createPreviewChecklistItems, previewPreventionGuide, previewWorkplace } from "../utils/devPreview";
 
 const SESSION_KEY = "safework_diagnosis_session";
 
@@ -16,7 +17,7 @@ interface DiagnosisSession {
   workplace: Workplace | null;
   preventionGuide: PreventionGuideResponse | null;
   checklistItems: ChecklistItem[];
-  selectedWorkTypes: string[];
+  selectedRiskScopes: RiskScopeCode[];
   checklistAnswers: Record<string, Answer>;
   riskAssessment: RiskAssessment | null;
 }
@@ -26,10 +27,10 @@ interface SafetyContextType extends DiagnosisSession {
   setWorkplace: (value: Workplace | null) => void;
   setPreventionGuide: (value: PreventionGuideResponse | null) => void;
   setChecklistItems: (value: ChecklistItem[]) => void;
-  setSelectedWorkTypes: (value: string[]) => void;
+  setSelectedRiskScopes: (value: RiskScopeCode[]) => void;
   setChecklistAnswers: (value: Record<string, Answer>) => void;
   setRiskAssessment: (value: RiskAssessment | null) => void;
-  startPreviewDiagnosis: () => void;
+  startPreviewDiagnosis: (riskScopes: RiskScopeCode[], workplace?: Workplace) => void;
   resetDiagnosis: () => void;
 }
 
@@ -38,7 +39,7 @@ const emptySession: DiagnosisSession = {
   workplace: null,
   preventionGuide: null,
   checklistItems: [],
-  selectedWorkTypes: [],
+  selectedRiskScopes: [],
   checklistAnswers: {},
   riskAssessment: null,
 };
@@ -71,11 +72,11 @@ export function SafetyProvider({ children }: { children: React.ReactNode }) {
       setWorkplace: (value) => update("workplace", value),
       setPreventionGuide: (value) => update("preventionGuide", value),
       setChecklistItems: (value) => update("checklistItems", value),
-      setSelectedWorkTypes: (value) => update("selectedWorkTypes", value),
+      setSelectedRiskScopes: (value) => update("selectedRiskScopes", value),
       setChecklistAnswers: (value) => update("checklistAnswers", value),
       setRiskAssessment: (value) => update("riskAssessment", value),
-      startPreviewDiagnosis: () => {
-        if (import.meta.env.DEV) setSession({ ...emptySession, workplace: previewWorkplace, preventionGuide: previewPreventionGuide, checklistItems: previewChecklistItems });
+      startPreviewDiagnosis: (riskScopes, workplace) => {
+        if (import.meta.env.DEV) setSession({ ...emptySession, workplace: workplace ?? previewWorkplace, preventionGuide: previewPreventionGuide, checklistItems: createPreviewChecklistItems(riskScopes), selectedRiskScopes: riskScopes });
       },
       resetDiagnosis: () => setSession(emptySession),
     }}>

@@ -35,6 +35,11 @@ public class WorkplaceService {
                 .sizeClass(request.getSizeClass())
                 .name(request.getName())
                 .address(request.getAddress())
+                .machineType(request.getMachineType())
+                .machineCount(request.getMachineCount())
+                .safetyDeviceStatus(request.getSafetyDeviceStatus())
+                .storageLocation(request.getStorageLocation())
+                .storageMethod(request.getStorageMethod())
                 .build();
 
         workplaceRepository.save(workplace);
@@ -65,7 +70,12 @@ public class WorkplaceService {
                 request.getEmployeeCount(),
                 request.getSizeClass(),
                 request.getName(),
-                request.getAddress()
+                request.getAddress(),
+                request.getMachineType(),
+                request.getMachineCount(),
+                request.getSafetyDeviceStatus(),
+                request.getStorageLocation(),
+                request.getStorageMethod()
         );
 
         return WorkplaceResponse.from(workplace);

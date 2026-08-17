@@ -14,6 +14,8 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
+import com.safework.workplace.repository.WorkplaceRepository;
+import com.safework.risk.repository.RiskAssessmentRepository;
 
 @Service
 @RequiredArgsConstructor
@@ -21,6 +23,8 @@ import java.util.stream.Collectors;
 public class PreventionGuideService {
 
     private final PreventionGuideRepository preventionGuideRepository;
+    private final WorkplaceRepository workplaceRepository;
+    private final RiskAssessmentRepository riskAssessmentRepository;
 
     public PreventionGuideResponse getGuide(PreventionGuideRequest request) {
         List<PreventionGuideRow> rows = preventionGuideRepository.fetch(
@@ -30,6 +34,20 @@ public class PreventionGuideService {
                 request.getExpectedAccidentCount(),
                 request.getItemsPerAccident());
 
+        return toResponse(rows);
+    }
+
+    public PreventionGuideResponse getGuideForDiagnosis(Long memberId, Long workplaceId,
+                                                        int accidentCount, int itemsPerAccident) {
+        workplaceRepository.findByIdAndOwnerId(workplaceId, memberId)
+                .orElseThrow(() -> new IllegalArgumentException("사업장을 찾을 수 없습니다."));
+        riskAssessmentRepository.findFirstByWorkplaceIdOrderByAssessedAtDesc(workplaceId)
+                .orElseThrow(() -> new IllegalArgumentException("체크리스트를 먼저 제출해 주세요."));
+        return toResponse(preventionGuideRepository.fetchForLatestDiagnosis(
+                workplaceId, accidentCount, itemsPerAccident));
+    }
+
+    private PreventionGuideResponse toResponse(List<PreventionGuideRow> rows) {
         Map<Integer, List<PreventionGuideRow>> byRank = rows.stream()
                 .collect(Collectors.groupingBy(PreventionGuideRow::rank, LinkedHashMap::new, Collectors.toList()));
 
