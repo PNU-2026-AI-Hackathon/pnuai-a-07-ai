@@ -115,6 +115,34 @@ class SafetyFlowIntegrationTest extends IntegrationTest {
     }
 
     @Test
+    @DisplayName("코드 목록에 없는 지역을 보내면 500 이 아니라 400 으로 안내한다")
+    void rejectsUnknownCodeValue() throws Exception {
+        // 업종·지역·규모는 코드 테이블 외래키다. 예전에는 "서버 내부 오류"가 나가서
+        // 사용자가 무엇을 고쳐야 하는지 알 수 없었다.
+        var result = api.postJson("/api/workplaces", token, Map.of(
+                "name", "테스트금속", "industry", "제조업", "subIndustry", "금속가공",
+                "sizeClass", "5인 미만", "region", "부산광역시", "employeeCount", 4));
+
+        assertThat(result.getResponse().getStatus()).isEqualTo(400);
+        JsonNode body = json(result);
+        assertThat(body.get("error").asText()).contains("선택할 수 없는 값");
+        // 어느 칸이 문제인지 알려줘야 화면에서 표시할 수 있다(컬럼명은 camelCase 로).
+        assertThat(body.get("fields").has("region")).isTrue();
+    }
+
+    @Test
+    @DisplayName("이미 가입된 이메일은 400 으로 돌려준다")
+    void rejectsDuplicateEmail() throws Exception {
+        String email = "dup-" + System.nanoTime() + "@test.local";
+        api.registerAndGetToken(email);
+
+        var result = api.postJson("/api/auth/register", token,
+                Map.of("email", email, "password", "test1234", "name", "테스트"));
+
+        assertThat(result.getResponse().getStatus()).isEqualTo(400);
+    }
+
+    @Test
     @DisplayName("점수·등급이 NULL 이어도 조회와 PDF 가 죽지 않는다")
     void handlesNullScoreAndGrade() throws Exception {
         long workplaceId = api.createManufacturingWorkplace(token);
