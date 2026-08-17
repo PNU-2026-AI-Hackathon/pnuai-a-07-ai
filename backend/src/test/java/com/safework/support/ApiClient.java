@@ -10,7 +10,9 @@ import java.nio.charset.StandardCharsets;
 import java.util.Map;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 
 /** 테스트에서 반복되는 인증·JSON 처리를 모아둔 헬퍼. */
 public class ApiClient {
@@ -45,6 +47,30 @@ public class ApiClient {
                         .header("Authorization", "Bearer " + token)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(MAPPER.writeValueAsString(body)))
+                .andReturn();
+    }
+
+    public MvcResult patchJson(String path, String token, Object body) throws Exception {
+        return mockMvc.perform(patch(path)
+                        .header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(MAPPER.writeValueAsString(body)))
+                .andReturn();
+    }
+
+    public MvcResult putJson(String path, String token, Object body) throws Exception {
+        return mockMvc.perform(put(path)
+                        .header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(MAPPER.writeValueAsString(body)))
+                .andReturn();
+    }
+
+    /** 비밀번호 변경 후 실제로 로그인이 되는지 확인할 때 쓴다. */
+    public MvcResult login(String email, String password) throws Exception {
+        return mockMvc.perform(post("/api/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(MAPPER.writeValueAsString(Map.of("email", email, "password", password))))
                 .andReturn();
     }
 
