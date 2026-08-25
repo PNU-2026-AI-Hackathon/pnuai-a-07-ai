@@ -145,7 +145,7 @@ SafeWork AI의 데이터 계층은 PostgreSQL 18을 기반으로 구성했다.
 - `fn_check_severe` : 산업안전보건법상 중대재해 기준 대조
 - 기타 위험도·예방·사고 대응 관련 함수
 
-PostgreSQL의 `enum`, `text[]`, `jsonb`, `pg_trgm`, `pgcrypto` 등의 기능을 적극 활용했다.
+PostgreSQL의 `enum`, `text[]`, `pg_trgm` 등의 기능을 적극 활용했다.
 
 ### ML 기반 위험 신호
 
@@ -289,9 +289,7 @@ SafeWork AI는 공개된 산업재해·법령·행정·정책 데이터를 비�
 | --- | --- |
 | PostgreSQL 18 | 메인 데이터베이스 |
 | `pg_trgm` | 한글 부분일치 검색 |
-| `jsonb` | 구조화된 JSON 데이터 |
 | `text[]` | 배열 데이터 |
-| `pgcrypto` | 암호화 관련 기능 |
 | PostgreSQL Function | 위험도·법령·예방 판정 로직 |
 
 ### ML / RAG
