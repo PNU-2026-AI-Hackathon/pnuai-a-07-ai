@@ -894,7 +894,7 @@ Testcontainers가 실제 PostgreSQL 컨테이너를 생성하여 테스트한다
 
 ## 프로젝트 소개 영상
 
-> **YouTube URL:** [교육원에서 부여받은 URL 입력]
+> **YouTube URL:** [https://www.youtube.com/watch?v=d4mtVFUBRwo&list=PLCM3TKSFVwws&index=16]
 
 ## 전체 서비스 시연
 
