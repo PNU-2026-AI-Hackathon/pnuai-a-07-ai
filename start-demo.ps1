@@ -19,7 +19,43 @@ $Repo        = "C:\dev\pnuai-a-07-ai\backend\.claude\worktrees\safework-ai-hacka
 $MlPython    = "C:\swml\Scripts\python.exe"      # ML 서버 가상환경 (경로가 길면 설치가 깨져서 C:\ 아래에 뒀다)
 $Cloudflared = "C:\Program Files (x86)\cloudflared\cloudflared.exe"
 $DockerApp   = "C:\Program Files\Docker\Docker\Docker Desktop.exe"
-$Ngrok       = "$env:LOCALAPPDATA\ngrok-bin\ngrok.exe"
+# ngrok.exe 위치.
+#
+# 이 PC 에는 ngrok 이 둘 있다. winget 으로 깐 3.3.1 이 PATH 에 잡혀 있고,
+# 고정 도메인에 필요한 --url 플래그는 3.20 부터 생겼다. 경로를 한 곳만 박아
+# 두거나 PATH 를 그냥 쓰면 어느 쪽이 걸릴지 운에 맡기게 된다.
+# 실제로 옛 버전이 걸려 "unknown flag: --url" 로 실패하고 cloudflared 로
+# 넘어갔다. 그래서 후보를 모두 모아 버전을 물어보고 가장 새 것을 쓴다.
+# 첫 줄이 기준 경로다. 환경변수를 쓰지 않는 절대 경로로 둔 이유가 있다.
+# $env:LOCALAPPDATA 로 적었더니 쉘에 따라 못 찾는 일이 반복됐고, 그때마다
+# PATH 의 옛 버전이 걸려 실패했다.
+$NgrokCandidates = @(
+    "C:\dev\ngrok\ngrok.exe",
+    "$env:LOCALAPPDATA\ngrok-bin\ngrok.exe",
+    "$env:USERPROFILE\ngrok.exe",
+    (Get-Command ngrok.exe -ErrorAction SilentlyContinue).Source
+) | Where-Object { $_ -and (Test-Path $_) } | Select-Object -Unique
+
+$Ngrok = $null
+$NgrokVersion = $null
+foreach ($candidate in $NgrokCandidates) {
+    $raw = & $candidate version 2>&1 | Out-String
+    if ($raw -match '(\d+)\.(\d+)\.(\d+)') {
+        $v = [version]"$($Matches[1]).$($Matches[2]).$($Matches[3])"
+        if (-not $NgrokVersion -or $v -gt $NgrokVersion) {
+            $NgrokVersion = $v
+            $Ngrok = $candidate
+        }
+    }
+}
+# ngrok 계정이 요구하는 최소 에이전트 버전이 3.20 이다. 그보다 낮으면 접속
+# 자체가 거부되므로(ERR_NGROK_121) 아예 쓰지 않는다. 예전에는 PATH 에 있던
+# 3.3.1 이 걸려서 매번 실패하고 cloudflared 로 넘어갔다.
+$NgrokTooOld = $null
+if ($Ngrok -and $NgrokVersion -lt [version]"3.20.0") {
+    $NgrokTooOld = "$NgrokVersion ($Ngrok)"
+    $Ngrok = $null
+}
 # ngrok 무료 등급이 주는 고정 도메인. 계정에 예약해 둔 이름을 그대로 적는다.
 # 비워 두면 ngrok 이 임시 주소를 주므로 고정 주소의 이점이 사라진다.
 $NgrokDomain = "haste-denture-tree.ngrok-free.dev"
@@ -137,22 +173,61 @@ if ($Tunnel) {
 
     # 이전에 뜬 터널이 남아 있으면 정리한다. ngrok 무료는 동시 세션이 하나뿐이라
     # 남아 있으면 새로 못 뜨고, cloudflared 가 둘 뜨면 주소가 헷갈린다.
-    Get-Process ngrok, cloudflared -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
-    Start-Sleep -Seconds 1
+    #
+    # Stop-Process 는 종료를 요청만 하고 곧바로 돌아온다. 죽는 중인 프로세스가
+    # 로그 파일 핸들을 쥔 채로 다음 줄이 실행되면, 그 파일로 리다이렉트하는
+    # Start-Process 가 조용히 실패한다(실제로 이것 때문에 ngrok 이 안 떴다).
+    # 그래서 실제로 끝날 때까지 기다린다.
+    $dying = Get-Process ngrok, cloudflared -ErrorAction SilentlyContinue
+    if ($dying) {
+        $dying | Stop-Process -Force -ErrorAction SilentlyContinue
+        $dying | Wait-Process -Timeout 10 -ErrorAction SilentlyContinue
+    }
 
-    if (Test-Path $Ngrok) {
+    if (-not $Ngrok) {
+        # 여기서 아무 말 없이 넘어가면, 왜 고정 주소가 안 나오는지 알 수가 없다.
+        if ($NgrokTooOld) {
+            Warn "ngrok 이 너무 오래됐습니다: $NgrokTooOld (3.20 이상 필요)"
+            Write-Host "        새 ngrok 을 C:\dev\ngrok\ngrok.exe 에 두면 됩니다" -ForegroundColor DarkGray
+        } else {
+            Warn "ngrok.exe 를 찾지 못했습니다. 찾아본 곳:"
+            $NgrokCandidates | ForEach-Object { Write-Host "        $_" -ForegroundColor DarkGray }
+        }
+    }
+
+    if ($Ngrok) {
+        # 어느 ngrok 을 쓰는지 남긴다. 두 개가 깔려 있어 헷갈렸던 적이 있다.
+        Write-Host "     ngrok $NgrokVersion  ($Ngrok)" -ForegroundColor DarkGray
+        # 그래도 파일이 잡혀 있을 수 있으니, 못 지우면 새 이름을 쓴다.
         Remove-Item "$Log\ngrok.log" -ErrorAction SilentlyContinue
+        if (Test-Path "$Log\ngrok.log") {
+            $stamp = Get-Date -Format "HHmmss"
+            $NgrokLog = "$Log\ngrok-$stamp.log"
+            $NgrokErr = "$Log\ngrok-$stamp.err"
+        } else {
+            $NgrokLog = "$Log\ngrok.log"
+            $NgrokErr = "$Log\ngrok.err"
+        }
         # 변수 이름을 $args 로 쓰면 안 된다. PowerShell 예약 변수(스크립트에 넘어온
         # 잔여 인자)라서 값을 넣어도 Start-Process 에 제대로 전달되지 않는다.
         # 실제로 그 탓에 ngrok 이 시작도 못 하고 조용히 cloudflared 로 넘어갔었다.
         $ngrokArgs = @("http", "--log=stdout", "--log-format=logfmt")
+        # 여기까지 왔으면 3.20 이상이 확정이라 --url 을 그대로 쓴다.
         if ($NgrokDomain) { $ngrokArgs += "--url=https://$NgrokDomain" }
         $ngrokArgs += "5173"
-        Start-Process -FilePath $Ngrok -ArgumentList $ngrokArgs -WindowStyle Hidden `
-            -RedirectStandardOutput "$Log\ngrok.log" -RedirectStandardError "$Log\ngrok.err"
+        # Start-Process 가 실패해도 스크립트는 계속 돈다($ErrorActionPreference=Continue).
+        # 실패를 놓치지 않도록 여기서 잡아 둔다.
+        $started = $true
+        try {
+            Start-Process -FilePath $Ngrok -ArgumentList $ngrokArgs -WindowStyle Hidden `
+                -RedirectStandardOutput $NgrokLog -RedirectStandardError $NgrokErr -ErrorAction Stop
+        } catch {
+            $started = $false
+            Warn "ngrok 을 시작하지 못했습니다: $($_.Exception.Message)"
+        }
 
         $sw = [Diagnostics.Stopwatch]::StartNew()
-        while ($sw.Elapsed.TotalSeconds -lt 45 -and -not $publicUrl) {
+        while ($started -and $sw.Elapsed.TotalSeconds -lt 45 -and -not $publicUrl) {
             Start-Sleep -Seconds 2
             # 로컬 관리 API 가 현재 터널 주소를 알려준다. 로그를 긁는 것보다 정확하다.
             try {
@@ -166,7 +241,7 @@ if ($Tunnel) {
             Warn "ngrok 실패"
             # 왜 실패했는지 그 자리에서 보여준다. 로그를 따로 열어 보게 하면
             # 대개 안 열어 보고 주소가 바뀐 채로 시연에 들어간다.
-            Get-Content "$Log\ngrok.log","$Log\ngrok.err" -Tail 5 -ErrorAction SilentlyContinue |
+            Get-Content $NgrokLog, $NgrokErr -Tail 5 -ErrorAction SilentlyContinue |
                 Where-Object { $_ -match "err|ERR_|lvl=eror|lvl=warn" } |
                 ForEach-Object { Write-Host "        $_" -ForegroundColor DarkYellow }
         }
