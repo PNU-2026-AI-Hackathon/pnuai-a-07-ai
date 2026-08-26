@@ -19,7 +19,17 @@ $Repo        = "C:\dev\pnuai-a-07-ai\backend\.claude\worktrees\safework-ai-hacka
 $MlPython    = "C:\swml\Scripts\python.exe"      # ML 서버 가상환경 (경로가 길면 설치가 깨져서 C:\ 아래에 뒀다)
 $Cloudflared = "C:\Program Files (x86)\cloudflared\cloudflared.exe"
 $DockerApp   = "C:\Program Files\Docker\Docker\Docker Desktop.exe"
-$Ngrok       = "$env:LOCALAPPDATA\ngrok-bin\ngrok.exe"
+# ngrok.exe 위치. 한 곳만 박아 두면 그 경로가 어긋났을 때 조용히 건너뛰고
+# cloudflared 로 넘어가 버린다(실제로 그래서 주소가 계속 바뀌었다).
+# 아래 후보를 순서대로 찾고, PATH 에 있으면 그것도 쓴다.
+$NgrokCandidates = @(
+    "$env:LOCALAPPDATA\ngrok-bin\ngrok.exe",
+    "$env:LOCALAPPDATA\ngrok\ngrok.exe",
+    "$env:USERPROFILE\ngrok.exe",
+    "C:\ngrok\ngrok.exe"
+)
+$Ngrok = $NgrokCandidates | Where-Object { Test-Path $_ } | Select-Object -First 1
+if (-not $Ngrok) { $Ngrok = (Get-Command ngrok.exe -ErrorAction SilentlyContinue).Source }
 # ngrok 무료 등급이 주는 고정 도메인. 계정에 예약해 둔 이름을 그대로 적는다.
 # 비워 두면 ngrok 이 임시 주소를 주므로 고정 주소의 이점이 사라진다.
 $NgrokDomain = "haste-denture-tree.ngrok-free.dev"
@@ -148,7 +158,13 @@ if ($Tunnel) {
         $dying | Wait-Process -Timeout 10 -ErrorAction SilentlyContinue
     }
 
-    if (Test-Path $Ngrok) {
+    if (-not $Ngrok) {
+        # 여기서 아무 말 없이 넘어가면, 왜 고정 주소가 안 나오는지 알 수가 없다.
+        Warn "ngrok.exe 를 찾지 못했습니다. 찾아본 곳:"
+        $NgrokCandidates | ForEach-Object { Write-Host "        $_" -ForegroundColor DarkGray }
+    }
+
+    if ($Ngrok) {
         # 그래도 파일이 잡혀 있을 수 있으니, 못 지우면 새 이름을 쓴다.
         Remove-Item "$Log\ngrok.log" -ErrorAction SilentlyContinue
         if (Test-Path "$Log\ngrok.log") {
