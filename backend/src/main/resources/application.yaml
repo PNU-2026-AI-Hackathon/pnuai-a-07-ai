@@ -18,7 +18,11 @@ spring:
 
 
 jwt:
-  secret: ${JWT_SECRET:c2FmZXdvcmthaXNlY3JldGtleWZvcmp3dHRva2VuZ2VuZXJhdGlvbjIwMjY=}
+  # 기본값을 두지 않는다. 이 저장소는 공개되어 있고, 서명 키는 대칭키다.
+  # 기본값을 적어 두면 그걸 읽은 사람이 아무 사용자로든 토큰을 위조할 수 있다.
+  # 없으면 기동에 실패하는 편이, 모르는 키로 도는 것보다 낫다.
+  # (start-demo.ps1 이 .env 에 키를 만들어 두므로 로컬 실행은 그대로 된다)
+  secret: ${JWT_SECRET}
   access-token-expiration: ${JWT_ACCESS_TOKEN_EXPIRATION:3600000}
 
 app:
