@@ -1,0 +1,17 @@
+# 학습 데이터 덤프 (100MB 초과 → 공유 드라이브/Git LFS)
+ai_safework.sql
+
+# Python 캐시
+__pycache__/
+*.pyc
+
+# API 응답 디버그 덤프
+resp*.txt
+*INSPECT*.xml
+
+# 로컬 환경
+.env
+*.log
+
+# 기초 덤프는 용량이 커서 커밋하지 않는다 (README 는 유지)
+dump/*.sql

@@ -1,0 +1,110 @@
+#!/bin/sh
+# 커밋에 자격증명이 섞이면 막는다.
+#
+# 이 저장소는 Public 이라 키가 한 번 올라가면 봇이 몇 분 안에 긁어간다.
+# git 이력에서 지우는 건 번거로우니 애초에 커밋되지 않게 한다.
+#
+# 설치: 저장소 루트에서 한 번만
+#   git config core.hooksPath .githooks
+#
+# 정말 커밋해야 하면(예: 샘플 문자열): git commit --no-verify
+
+set -e
+
+RED=''
+YELLOW=''
+RESET=''
+if [ -t 1 ]; then
+    RED=$(printf '\033[31m')
+    YELLOW=$(printf '\033[33m')
+    RESET=$(printf '\033[0m')
+fi
+
+fail=0
+
+report() {
+    if [ "$fail" -eq 0 ]; then
+        printf '%s커밋을 중단했습니다 — 자격증명으로 보이는 값이 있습니다.%s\n\n' "$RED" "$RESET" >&2
+    fi
+    fail=1
+    printf '  %s\n' "$1" >&2
+}
+
+# 스테이징된 파일만 검사한다(바이너리 제외).
+files=$(git diff --cached --name-only --diff-filter=ACM)
+[ -z "$files" ] && exit 0
+
+for file in $files; do
+    # 이 훅 자신과 문서는 패턴을 설명하느라 예시를 담을 수 있어 건너뛴다.
+    case "$file" in
+        .githooks/*|*/SECURITY.md|SECURITY.md) continue ;;
+    esac
+    [ -f "$file" ] || continue
+
+    # 바이너리 건너뛰기
+    if git diff --cached --numstat -- "$file" | grep -q '^-'; then
+        continue
+    fi
+
+    added=$(git diff --cached -U0 -- "$file" | grep '^+' | grep -v '^+++' || true)
+    [ -z "$added" ] && continue
+
+    # Google API 키 (Gemini 등)
+    if printf '%s' "$added" | grep -Eq 'AIza[0-9A-Za-z_-]{35}'; then
+        report "$file : Google API 키로 보이는 값 (AIza...)"
+    fi
+    # GitHub 토큰
+    if printf '%s' "$added" | grep -Eq 'gh[pousr]_[0-9A-Za-z]{36,}'; then
+        report "$file : GitHub 토큰으로 보이는 값 (ghp_/gho_...)"
+    fi
+    # OpenAI 키
+    if printf '%s' "$added" | grep -Eq 'sk-[A-Za-z0-9_-]{20,}'; then
+        report "$file : OpenAI API 키로 보이는 값 (sk-...)"
+    fi
+    # AWS 액세스 키
+    if printf '%s' "$added" | grep -Eq '(AKIA|ASIA)[0-9A-Z]{16}'; then
+        report "$file : AWS 액세스 키로 보이는 값"
+    fi
+    # 개인키 파일 내용
+    if printf '%s' "$added" | grep -q 'BEGIN .*PRIVATE KEY'; then
+        report "$file : 개인키(PRIVATE KEY) 블록"
+    fi
+    # 설정 파일에 키를 직접 적은 경우 (환경변수 참조 ${...} 는 허용)
+    if printf '%s' "$added" | grep -Eiq '(api[_-]?key|secret|password|token)[[:space:]]*[:=][[:space:]]*["'\'']?[A-Za-z0-9_\-]{16,}'; then
+        if ! printf '%s' "$added" | grep -Eq '\$\{[A-Z_]+' ; then
+            report "$file : 설정에 값이 직접 적힌 것으로 보임 (환경변수 \${...} 를 쓰세요)"
+        fi
+    fi
+
+    # ${VAR:기본값} 안에 긴 값이 들어 있는 경우.
+    # 위 검사는 줄에 ${...} 만 있으면 통과시켜 줬는데, 그 틈으로
+    # jwt secret 기본값이 그대로 올라간 적이 있다. 환경변수를 쓰는 모양만
+    # 갖췄을 뿐 값은 저장소에 적혀 있으니 똑같이 유출이다.
+    # 빈 기본값(${VAR:} · ${VAR:-})과 경로·URL 은 걸리지 않게 둔다.
+    if printf '%s' "$added" | grep -Eq '\$\{[A-Z_]+:-?[A-Za-z0-9+/_=-]{16,}\}'; then
+        report "$file : \${환경변수:기본값} 의 기본값이 키처럼 보임 (기본값을 지우세요)"
+    fi
+done
+
+# .env 류는 통째로 막는다.
+for file in $files; do
+    case "$file" in
+        *.env|*.env.*|.env)
+            case "$file" in
+                *.env.example|*.env.sample|*.env.template) ;;
+                *) report "$file : .env 파일은 커밋하지 않습니다 (.env.example 만 허용)" ;;
+            esac
+            ;;
+    esac
+done
+
+if [ "$fail" -ne 0 ]; then
+    printf '\n%s해결 방법%s\n' "$YELLOW" "$RESET" >&2
+    printf '  1) 값을 지우고 환경변수로 옮기세요.  예: api-key: ${GEMINI_API_KEY:}\n' >&2
+    printf '  2) git restore --staged <파일> 로 스테이징에서 빼세요.\n' >&2
+    printf '  3) 이미 어딘가에 노출된 키라면 발급처에서 폐기하고 새로 만드세요.\n' >&2
+    printf '  (오탐이면 git commit --no-verify)\n\n' >&2
+    exit 1
+fi
+
+exit 0

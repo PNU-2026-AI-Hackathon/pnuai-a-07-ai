@@ -1,0 +1,189 @@
+package com.safework.checklist.service;
+
+import com.safework.auth.entity.Member;
+import com.safework.auth.repository.MemberRepository;
+import com.safework.checklist.dto.ChecklistItemResponse;
+import com.safework.checklist.dto.ChecklistSubmitRequest;
+import com.safework.checklist.dto.ChecklistSubmitResponse;
+import com.safework.checklist.entity.Answer;
+import com.safework.checklist.entity.ChecklistItem;
+import com.safework.checklist.entity.ChecklistSubmission;
+import com.safework.checklist.repository.ChecklistItemRepository;
+import com.safework.checklist.repository.ChecklistResponseRepository;
+import com.safework.checklist.repository.ChecklistSubmissionRepository;
+import com.safework.ml.client.MlServerClient;
+import com.safework.risk.dto.RiskAssessmentResponse;
+import com.safework.risk.entity.RiskAssessment;
+import com.safework.risk.repository.ColdstartAssessRepository;
+import com.safework.risk.repository.RiskAssessmentRepository;
+import com.safework.workplace.entity.Workplace;
+import com.safework.workplace.repository.WorkplaceRepository;
+import lombok.RequiredArgsConstructor;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.function.Function;
+import java.util.stream.Collectors;
+
+@Service
+@RequiredArgsConstructor
+@Transactional(readOnly = true)
+public class ChecklistService {
+
+    private final ChecklistItemRepository checklistItemRepository;
+    private final ChecklistSubmissionRepository submissionRepository;
+    private final ChecklistResponseRepository responseRepository;
+    private final WorkplaceRepository workplaceRepository;
+    private final MemberRepository memberRepository;
+    private final ColdstartAssessRepository coldstartAssessRepository;
+    private final RiskAssessmentRepository riskAssessmentRepository;
+    private final MlServerClient mlServerClient;
+
+    /** 사업장 업종에 해당하는 점검 문항 목록 */
+    public List<ChecklistItemResponse> getItems(Long memberId, Long workplaceId,
+                                                 boolean criticalOnly, List<String> workTypes,
+                                                 List<String> scopeCodes, String category, int limit) {
+        Workplace workplace = findOwnedWorkplace(memberId, workplaceId);
+
+        List<ChecklistScope> scopes = ChecklistScope.parse(scopeCodes);
+        if (!scopes.isEmpty()) {
+            return selectByScopes(workplace.getIndustry(), criticalOnly, scopes, category, limit)
+                    .stream().map(ChecklistItemResponse::new).toList();
+        }
+
+        int safeLimit = Math.max(1, Math.min(limit, 50));
+        List<ChecklistItem> items = workTypes == null || workTypes.isEmpty()
+                ? checklistItemRepository.search(workplace.getIndustry(), criticalOnly, null, category)
+                : checklistItemRepository.searchByWorkTypes(
+                        workplace.getIndustry(), criticalOnly, workTypes, category);
+
+        return items.stream()
+                .limit(safeLimit)
+                .map(ChecklistItemResponse::new)
+                .toList();
+    }
+
+    /**
+     * 공통 문항 → 같은 업종의 관련 문항 → 다른 업종의 동일 작업 문항 순으로 담는다.
+     * 관련 후보가 적을 때만 업종 고위험 문항으로 보완하고, 결과는 가능한 한 25~35개로 유지한다.
+     */
+    private List<ChecklistItem> selectByScopes(String industry, boolean criticalOnly,
+                                                List<ChecklistScope> scopes, String category, int limit) {
+        int maxItems = Math.max(25, Math.min(limit, 35));
+        int minItems = Math.min(25, maxItems);
+        List<ChecklistItem> industryItems = checklistItemRepository.search(industry, criticalOnly, null, category);
+        List<ChecklistItem> allItems = checklistItemRepository.searchAcrossIndustries(criticalOnly, category);
+        LinkedHashMap<String, ChecklistItem> selected = new LinkedHashMap<>();
+
+        addMatching(selected, industryItems, ChecklistScope::isCommon);
+        addMatching(selected, industryItems, item -> scopes.stream().anyMatch(scope -> scope.matches(item)));
+        addMatching(selected, allItems, item -> scopes.stream().anyMatch(scope -> scope.matches(item)));
+        addMatching(selected, allItems, ChecklistScope::isCommon);
+
+        if (selected.size() < minItems) addUntil(selected, industryItems, minItems);
+        if (selected.size() < minItems) addUntil(selected, allItems, minItems);
+
+        return new ArrayList<>(selected.values()).stream().limit(maxItems).toList();
+    }
+
+    private void addMatching(LinkedHashMap<String, ChecklistItem> target, List<ChecklistItem> source,
+                             java.util.function.Predicate<ChecklistItem> predicate) {
+        source.stream().filter(predicate)
+                .forEach(item -> target.putIfAbsent(item.getItemCode(), item));
+    }
+
+    private void addUntil(LinkedHashMap<String, ChecklistItem> target, List<ChecklistItem> source, int size) {
+        for (ChecklistItem item : source) {
+            if (target.size() >= size) return;
+            target.putIfAbsent(item.getItemCode(), item);
+        }
+    }
+
+    /** 체크리스트 제출 → 위험도 진단까지 한 번에 수행 */
+    @Transactional
+    public ChecklistSubmitResponse submit(Long memberId, Long workplaceId, ChecklistSubmitRequest request) {
+        Workplace workplace = findOwnedWorkplace(memberId, workplaceId);
+        Member member = memberRepository.findById(memberId)
+                .orElseThrow(() -> new IllegalArgumentException("회원을 찾을 수 없습니다."));
+
+        Map<String, ChecklistItem> itemsByCode = resolveItems(request.getResponses());
+
+        int totalItems = request.getResponses().size();
+        int answeredItems = (int) request.getResponses().stream()
+                .filter(r -> r.getAnswer() != Answer.NA)
+                .count();
+
+        ChecklistSubmission submission = submissionRepository.save(ChecklistSubmission.builder()
+                .workplace(workplace)
+                .submittedBy(member)
+                .totalItems(totalItems)
+                .answeredItems(answeredItems)
+                .build());
+
+        List<ChecklistResponseRepository.ResponseRow> rows = request.getResponses().stream()
+                .map(r -> new ChecklistResponseRepository.ResponseRow(
+                        itemsByCode.get(r.getItemCode()).getId(), r.getAnswer(), r.getNote()))
+                .toList();
+        responseRepository.saveAll(submission.getId(), rows);
+
+        // fn_coldstart_assess 는 방금 저장한 제출을 읽으므로, 응답 INSERT 이후에 호출해야 한다.
+        // 점수 계산은 DB 함수가 정본이다(공식이 두 군데 있으면 어긋난다).
+        Long assessmentId = coldstartAssessRepository.assess(workplaceId);
+        RiskAssessment assessment = riskAssessmentRepository.findById(assessmentId)
+                .orElseThrow(() -> new IllegalStateException("위험도 진단 결과를 찾을 수 없습니다."));
+
+        attachMlPrediction(workplace, assessment, submission.getId());
+
+        return new ChecklistSubmitResponse(submission.getId(), totalItems, answeredItems,
+                new RiskAssessmentResponse(assessment));
+    }
+
+    /**
+     * 통계 점수 위에 ML 예측(어떤 재해가 날 가능성이 높은지, 얼마나 심각할지)을 얹는다.
+     * ML 서버가 없거나 느리면 그냥 콜드스타트 결과만 남는다 — 진단 자체가 실패하면 안 된다.
+     */
+    private void attachMlPrediction(Workplace workplace, RiskAssessment assessment, Long submissionId) {
+        List<ChecklistResponseRepository.RiskSignal> riskSignals =
+                responseRepository.findRiskSignals(submissionId);
+        mlServerClient.predictRisk(workplace, riskSignals)
+                .ifPresent(prediction -> assessment.attachMlPrediction(
+                        prediction.topRisks(), prediction.severityPrediction(),
+                        prediction.modelVersion()));
+    }
+
+    /** 요청의 itemCode 를 실제 문항으로 바꾸고, 잘못된 코드/중복이 있으면 막는다. */
+    private Map<String, ChecklistItem> resolveItems(List<ChecklistSubmitRequest.ResponseItem> responses) {
+        List<String> requestedCodes = responses.stream()
+                .map(ChecklistSubmitRequest.ResponseItem::getItemCode)
+                .toList();
+
+        Set<String> uniqueCodes = new LinkedHashSet<>(requestedCodes);
+        if (uniqueCodes.size() != requestedCodes.size()) {
+            throw new IllegalArgumentException("같은 문항에 대한 응답이 중복되었습니다.");
+        }
+
+        Map<String, ChecklistItem> itemsByCode = checklistItemRepository.findByItemCodeIn(uniqueCodes)
+                .stream()
+                .collect(Collectors.toMap(ChecklistItem::getItemCode, Function.identity()));
+
+        List<String> unknownCodes = uniqueCodes.stream()
+                .filter(code -> !itemsByCode.containsKey(code))
+                .toList();
+        if (!unknownCodes.isEmpty()) {
+            throw new IllegalArgumentException("존재하지 않는 문항 코드입니다: " + String.join(", ", unknownCodes));
+        }
+
+        return itemsByCode;
+    }
+
+    private Workplace findOwnedWorkplace(Long memberId, Long workplaceId) {
+        return workplaceRepository.findByIdAndOwnerId(workplaceId, memberId)
+                .orElseThrow(() -> new IllegalArgumentException("사업장을 찾을 수 없습니다."));
+    }
+}

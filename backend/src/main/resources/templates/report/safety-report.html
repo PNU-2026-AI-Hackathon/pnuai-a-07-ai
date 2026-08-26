@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8"/>
+    <title th:text="|${workplaceName} 안전관리 진단 리포트|">안전관리 진단 리포트</title>
+    <style th:inline="text">
+        @page {
+            size: A4;
+            margin: 18mm 15mm 20mm 15mm;
+            @bottom-center {
+                content: "SafeWork AI 안전관리 진단 리포트 · " counter(page) " / " counter(pages);
+                font-family: "[[${fontFamily}]]", sans-serif;
+                font-size: 8pt;
+                color: #94a3b8;
+            }
+        }
+
+        * { box-sizing: border-box; }
+
+        body {
+            font-family: "[[${fontFamily}]]", sans-serif;
+            font-size: 10pt;
+            color: #1e293b;
+            line-height: 1.6;
+            margin: 0;
+        }
+
+        h1 { font-size: 20pt; margin: 0 0 4px; color: #0f172a; }
+        h2 {
+            font-size: 13pt;
+            margin: 26px 0 10px;
+            padding-bottom: 6px;
+            border-bottom: 2px solid #1e40af;
+            color: #1e40af;
+        }
+
+        .subtitle { color: #64748b; font-size: 9pt; margin-bottom: 18px; }
+
+        table { width: 100%; border-collapse: collapse; }
+        th, td { padding: 7px 9px; border: 1px solid #cbd5e1; text-align: left; vertical-align: top; }
+        th { background: #f1f5f9; font-weight: bold; color: #334155; }
+
+        .info-table th { width: 22%; }
+
+        /* 위험도 요약 */
+        .score-box {
+            border: 2px solid #1e40af;
+            border-radius: 6px;
+            padding: 14px 16px;
+            margin-bottom: 12px;
+        }
+        .score-value { font-size: 30pt; font-weight: bold; line-height: 1.1; }
+        .score-label { font-size: 9pt; color: #64748b; }
+
+        .grade { display: inline-block; padding: 3px 12px; border-radius: 3px; color: #fff; font-weight: bold; font-size: 11pt; }
+        .grade-CRITICAL { background: #b91c1c; }
+        .grade-HIGH     { background: #ea580c; }
+        .grade-MEDIUM   { background: #ca8a04; }
+        .grade-LOW      { background: #15803d; }
+
+        .score-CRITICAL { color: #b91c1c; }
+        .score-HIGH     { color: #ea580c; }
+        .score-MEDIUM   { color: #ca8a04; }
+        .score-LOW      { color: #15803d; }
+
+        .badge-critical {
+            display: inline-block; padding: 1px 6px; border-radius: 3px;
+            background: #fee2e2; color: #b91c1c; font-size: 8pt; font-weight: bold;
+        }
+
+        .law { color: #475569; font-size: 8.5pt; }
+        .muted { color: #64748b; }
+        .empty { padding: 14px; background: #f8fafc; border: 1px dashed #cbd5e1; color: #64748b; }
+
+        /* 표가 페이지 경계에서 잘리지 않도록 */
+        tr { page-break-inside: avoid; }
+        .section { page-break-inside: auto; }
+        .accident-block { page-break-inside: avoid; margin-bottom: 14px; }
+    </style>
+</head>
+<body>
+
+<h1 th:text="|${workplaceName} 안전관리 진단 리포트|">안전관리 진단 리포트</h1>
+<div class="subtitle" th:text="|발행일 ${generatedAt} · SafeWork AI|">발행일</div>
+
+<!-- 1. 사업장 정보 -->
+<div class="section">
+    <h2>1. 사업장 정보</h2>
+    <table class="info-table">
+        <tr><th>사업장명</th><td th:text="${workplaceName}">-</td>
+            <th>업종</th><td th:text="${industry} + (${subIndustry} != null ? ' / ' + ${subIndustry} : '')">-</td></tr>
+        <tr><th>규모</th><td th:text="${sizeClass}">-</td>
+            <th>지역</th><td th:text="${region}">-</td></tr>
+        <tr><th>근로자 수</th><td th:text="${employeeCount} != null ? ${employeeCount} + '명' : '-'">-</td>
+            <th>주소</th><td th:text="${address} ?: '-'">-</td></tr>
+        <tr><th>주요 기계·설비</th><td th:text="${machineType} ?: '-'">-</td>
+            <th>설비 수</th><td th:text="${machineCount} != null ? ${machineCount} + '대' : '-'">-</td></tr>
+        <tr><th>안전장치 상태</th><td th:text="${safetyDeviceStatus} ?: '-'">-</td>
+            <th>적재 위치·방식</th><td><span th:text="${storageLocation} ?: '-'">-</span> /
+                <span th:text="${storageMethod} ?: '-'">-</span></td></tr>
+    </table>
+</div>
+
+<!-- 2. 위험도 진단 -->
+<div class="section">
+    <h2>2. 위험도 진단 결과</h2>
+
+    <div class="score-box">
+        <span class="score-value" th:classappend="'score-' + ${riskGrade}" th:text="${riskScore}">0</span>
+        <span class="score-label"> / 100 점</span>
+        <span class="grade" th:classappend="'grade-' + ${riskGrade}" th:text="${riskGradeLabel}"
+              style="margin-left:14px;">등급</span>
+    </div>
+
+    <table>
+        <tr><th style="width:25%">주요 예상 재해</th><td th:text="${topAccidentType} ?: '-'">-</td></tr>
+        <tr><th>진단 방식</th><td th:text="${methodLabel}">-</td></tr>
+        <tr><th>기본 점수 (동종·동규모 통계)</th><td th:text="${baseComponent} ?: '-'">-</td></tr>
+        <tr><th>체크리스트 점수 (미비 항목)</th><td th:text="${checklistComponent} ?: '-'">-</td></tr>
+        <tr><th>진단 일시</th><td th:text="${assessedAt}">-</td></tr>
+    </table>
+    <p class="muted" style="font-size:8.5pt;">
+        점수가 높을수록 위험합니다. 기본 점수는 같은 업종·규모·지역 사업장의 재해 통계에서,
+        체크리스트 점수는 미비로 답한 항목의 가중치에서 산출됩니다.
+    </p>
+</div>
+
+<!-- 3. 미비 항목 및 근거 법령 -->
+<div class="section">
+    <h2>3. 조치가 필요한 항목</h2>
+
+    <div th:if="${#lists.isEmpty(deficientItems)}" class="empty">
+        미비로 답한 항목이 없습니다.
+    </div>
+
+    <table th:unless="${#lists.isEmpty(deficientItems)}">
+        <thead>
+        <tr>
+            <th style="width:14%">재해유형</th>
+            <th style="width:46%">점검 항목</th>
+            <th style="width:40%">근거 법령</th>
+        </tr>
+        </thead>
+        <tbody>
+        <tr th:each="item : ${deficientItems}">
+            <td>
+                <span th:text="${item.category}">-</span><br/>
+                <span th:if="${item.critical}" class="badge-critical">중대</span>
+            </td>
+            <td>
+                <span th:text="${item.question}">-</span><br/>
+                <span class="muted" style="font-size:8pt;" th:text="|${item.workType} · 가중치 ${item.riskWeight}|">-</span>
+            </td>
+            <td class="law">
+                <span th:each="law : ${item.laws}">
+                    <span th:text="|${law.lawName} ${law.articleNo}|">-</span><br/>
+                </span>
+            </td>
+        </tr>
+        </tbody>
+    </table>
+</div>
+
+<!-- 4. 진단 위험유형별 예방 조치 -->
+<div class="section">
+    <h2>4. 진단 위험유형별 예방 조치</h2>
+
+    <div th:if="${#lists.isEmpty(predictions)}" class="empty">
+        체크리스트에서 확인된 중대한 미비 항목이 없습니다.
+    </div>
+
+    <div th:each="p : ${predictions}" class="accident-block">
+        <table>
+            <thead>
+            <tr>
+                <th colspan="2">
+                    <span th:text="|${p.rank}순위. ${p.accidentType}|">-</span>
+                    <span class="muted" style="font-weight:normal;"
+                          th:text="|(미비 위험 비중 ${p.ratioPercent}%)|">-</span>
+                </th>
+            </tr>
+            </thead>
+            <tbody>
+            <tr th:if="${#lists.isEmpty(p.checklist)}">
+                <td colspan="2" class="muted">이 재해유형에 등록된 점검 항목이 아직 없습니다.</td>
+            </tr>
+            <tr th:each="c : ${p.checklist}">
+                <td style="width:60%">
+                    <span th:text="${c.question}">-</span>
+                    <span th:if="${c.critical}" class="badge-critical">중대</span><br/>
+                    <span class="muted" style="font-size:8pt;" th:text="${c.workType}">-</span>
+                </td>
+                <td class="law" style="width:40%">
+                    <span th:each="law : ${c.lawBasis}">
+                        <span th:text="${law}">-</span><br/>
+                    </span>
+                </td>
+            </tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- 5. 안내 -->
+<div class="section">
+    <h2>5. 안내</h2>
+    <p class="muted" style="font-size:8.5pt;">
+        본 리포트는 사업장이 입력한 정보와 체크리스트 응답, 그리고 산업재해 통계·중대재해(SIF) 사례를
+        바탕으로 자동 생성된 참고 자료입니다. 법적 효력을 갖는 진단서가 아니며,
+        실제 안전조치는 관할 기관 및 안전보건 전문가의 확인을 받으시기 바랍니다.
+    </p>
+</div>
+
+</body>
+</html>
