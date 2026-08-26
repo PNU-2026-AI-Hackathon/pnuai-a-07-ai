@@ -135,12 +135,20 @@ $publicUrl = $null
 if ($Tunnel) {
     Step 5 "공개 주소"
 
+    # 이전에 뜬 터널이 남아 있으면 정리한다. ngrok 무료는 동시 세션이 하나뿐이라
+    # 남아 있으면 새로 못 뜨고, cloudflared 가 둘 뜨면 주소가 헷갈린다.
+    Get-Process ngrok, cloudflared -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
+    Start-Sleep -Seconds 1
+
     if (Test-Path $Ngrok) {
         Remove-Item "$Log\ngrok.log" -ErrorAction SilentlyContinue
-        $args = @("http","--log=stdout","--log-format=logfmt")
-        if ($NgrokDomain) { $args += "--url=https://$NgrokDomain" }
-        $args += "5173"
-        Start-Process -FilePath $Ngrok -ArgumentList $args -WindowStyle Hidden `
+        # 변수 이름을 $args 로 쓰면 안 된다. PowerShell 예약 변수(스크립트에 넘어온
+        # 잔여 인자)라서 값을 넣어도 Start-Process 에 제대로 전달되지 않는다.
+        # 실제로 그 탓에 ngrok 이 시작도 못 하고 조용히 cloudflared 로 넘어갔었다.
+        $ngrokArgs = @("http", "--log=stdout", "--log-format=logfmt")
+        if ($NgrokDomain) { $ngrokArgs += "--url=https://$NgrokDomain" }
+        $ngrokArgs += "5173"
+        Start-Process -FilePath $Ngrok -ArgumentList $ngrokArgs -WindowStyle Hidden `
             -RedirectStandardOutput "$Log\ngrok.log" -RedirectStandardError "$Log\ngrok.err"
 
         $sw = [Diagnostics.Stopwatch]::StartNew()
@@ -154,7 +162,14 @@ if ($Tunnel) {
             } catch { }
         }
         if ($publicUrl) { Ok "$publicUrl  (고정 주소 — 다시 켜도 그대로)" }
-        else { Warn "ngrok 실패. 로그: $Log\ngrok.log" }
+        else {
+            Warn "ngrok 실패"
+            # 왜 실패했는지 그 자리에서 보여준다. 로그를 따로 열어 보게 하면
+            # 대개 안 열어 보고 주소가 바뀐 채로 시연에 들어간다.
+            Get-Content "$Log\ngrok.log","$Log\ngrok.err" -Tail 5 -ErrorAction SilentlyContinue |
+                Where-Object { $_ -match "err|ERR_|lvl=eror|lvl=warn" } |
+                ForEach-Object { Write-Host "        $_" -ForegroundColor DarkYellow }
+        }
     }
 
     if (-not $publicUrl -and (Test-Path $Cloudflared)) {
