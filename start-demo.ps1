@@ -137,22 +137,47 @@ if ($Tunnel) {
 
     # 이전에 뜬 터널이 남아 있으면 정리한다. ngrok 무료는 동시 세션이 하나뿐이라
     # 남아 있으면 새로 못 뜨고, cloudflared 가 둘 뜨면 주소가 헷갈린다.
-    Get-Process ngrok, cloudflared -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
-    Start-Sleep -Seconds 1
+    #
+    # Stop-Process 는 종료를 요청만 하고 곧바로 돌아온다. 죽는 중인 프로세스가
+    # 로그 파일 핸들을 쥔 채로 다음 줄이 실행되면, 그 파일로 리다이렉트하는
+    # Start-Process 가 조용히 실패한다(실제로 이것 때문에 ngrok 이 안 떴다).
+    # 그래서 실제로 끝날 때까지 기다린다.
+    $dying = Get-Process ngrok, cloudflared -ErrorAction SilentlyContinue
+    if ($dying) {
+        $dying | Stop-Process -Force -ErrorAction SilentlyContinue
+        $dying | Wait-Process -Timeout 10 -ErrorAction SilentlyContinue
+    }
 
     if (Test-Path $Ngrok) {
+        # 그래도 파일이 잡혀 있을 수 있으니, 못 지우면 새 이름을 쓴다.
         Remove-Item "$Log\ngrok.log" -ErrorAction SilentlyContinue
+        if (Test-Path "$Log\ngrok.log") {
+            $stamp = Get-Date -Format "HHmmss"
+            $NgrokLog = "$Log\ngrok-$stamp.log"
+            $NgrokErr = "$Log\ngrok-$stamp.err"
+        } else {
+            $NgrokLog = "$Log\ngrok.log"
+            $NgrokErr = "$Log\ngrok.err"
+        }
         # 변수 이름을 $args 로 쓰면 안 된다. PowerShell 예약 변수(스크립트에 넘어온
         # 잔여 인자)라서 값을 넣어도 Start-Process 에 제대로 전달되지 않는다.
         # 실제로 그 탓에 ngrok 이 시작도 못 하고 조용히 cloudflared 로 넘어갔었다.
         $ngrokArgs = @("http", "--log=stdout", "--log-format=logfmt")
         if ($NgrokDomain) { $ngrokArgs += "--url=https://$NgrokDomain" }
         $ngrokArgs += "5173"
-        Start-Process -FilePath $Ngrok -ArgumentList $ngrokArgs -WindowStyle Hidden `
-            -RedirectStandardOutput "$Log\ngrok.log" -RedirectStandardError "$Log\ngrok.err"
+        # Start-Process 가 실패해도 스크립트는 계속 돈다($ErrorActionPreference=Continue).
+        # 실패를 놓치지 않도록 여기서 잡아 둔다.
+        $started = $true
+        try {
+            Start-Process -FilePath $Ngrok -ArgumentList $ngrokArgs -WindowStyle Hidden `
+                -RedirectStandardOutput $NgrokLog -RedirectStandardError $NgrokErr -ErrorAction Stop
+        } catch {
+            $started = $false
+            Warn "ngrok 을 시작하지 못했습니다: $($_.Exception.Message)"
+        }
 
         $sw = [Diagnostics.Stopwatch]::StartNew()
-        while ($sw.Elapsed.TotalSeconds -lt 45 -and -not $publicUrl) {
+        while ($started -and $sw.Elapsed.TotalSeconds -lt 45 -and -not $publicUrl) {
             Start-Sleep -Seconds 2
             # 로컬 관리 API 가 현재 터널 주소를 알려준다. 로그를 긁는 것보다 정확하다.
             try {
@@ -166,7 +191,7 @@ if ($Tunnel) {
             Warn "ngrok 실패"
             # 왜 실패했는지 그 자리에서 보여준다. 로그를 따로 열어 보게 하면
             # 대개 안 열어 보고 주소가 바뀐 채로 시연에 들어간다.
-            Get-Content "$Log\ngrok.log","$Log\ngrok.err" -Tail 5 -ErrorAction SilentlyContinue |
+            Get-Content $NgrokLog, $NgrokErr -Tail 5 -ErrorAction SilentlyContinue |
                 Where-Object { $_ -match "err|ERR_|lvl=eror|lvl=warn" } |
                 ForEach-Object { Write-Host "        $_" -ForegroundColor DarkYellow }
         }
