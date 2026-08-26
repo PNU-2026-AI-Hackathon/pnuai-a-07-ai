@@ -19,17 +19,35 @@ $Repo        = "C:\dev\pnuai-a-07-ai\backend\.claude\worktrees\safework-ai-hacka
 $MlPython    = "C:\swml\Scripts\python.exe"      # ML 서버 가상환경 (경로가 길면 설치가 깨져서 C:\ 아래에 뒀다)
 $Cloudflared = "C:\Program Files (x86)\cloudflared\cloudflared.exe"
 $DockerApp   = "C:\Program Files\Docker\Docker\Docker Desktop.exe"
-# ngrok.exe 위치. 한 곳만 박아 두면 그 경로가 어긋났을 때 조용히 건너뛰고
-# cloudflared 로 넘어가 버린다(실제로 그래서 주소가 계속 바뀌었다).
-# 아래 후보를 순서대로 찾고, PATH 에 있으면 그것도 쓴다.
+# ngrok.exe 위치.
+#
+# 이 PC 에는 ngrok 이 둘 있다. winget 으로 깐 3.3.1 이 PATH 에 잡혀 있고,
+# 고정 도메인에 필요한 --url 플래그는 3.20 부터 생겼다. 경로를 한 곳만 박아
+# 두거나 PATH 를 그냥 쓰면 어느 쪽이 걸릴지 운에 맡기게 된다.
+# 실제로 옛 버전이 걸려 "unknown flag: --url" 로 실패하고 cloudflared 로
+# 넘어갔다. 그래서 후보를 모두 모아 버전을 물어보고 가장 새 것을 쓴다.
 $NgrokCandidates = @(
     "$env:LOCALAPPDATA\ngrok-bin\ngrok.exe",
     "$env:LOCALAPPDATA\ngrok\ngrok.exe",
     "$env:USERPROFILE\ngrok.exe",
-    "C:\ngrok\ngrok.exe"
-)
-$Ngrok = $NgrokCandidates | Where-Object { Test-Path $_ } | Select-Object -First 1
-if (-not $Ngrok) { $Ngrok = (Get-Command ngrok.exe -ErrorAction SilentlyContinue).Source }
+    "C:\ngrok\ngrok.exe",
+    (Get-Command ngrok.exe -ErrorAction SilentlyContinue).Source
+) | Where-Object { $_ -and (Test-Path $_) } | Select-Object -Unique
+
+$Ngrok = $null
+$NgrokVersion = $null
+foreach ($candidate in $NgrokCandidates) {
+    $raw = & $candidate version 2>&1 | Out-String
+    if ($raw -match '(\d+)\.(\d+)\.(\d+)') {
+        $v = [version]"$($Matches[1]).$($Matches[2]).$($Matches[3])"
+        if (-not $NgrokVersion -or $v -gt $NgrokVersion) {
+            $NgrokVersion = $v
+            $Ngrok = $candidate
+        }
+    }
+}
+# --url 은 3.20 부터다. 그보다 낮으면 옛 이름인 --domain 을 쓴다.
+$NgrokDomainFlag = if ($NgrokVersion -and $NgrokVersion -ge [version]"3.20.0") { "--url" } else { "--domain" }
 # ngrok 무료 등급이 주는 고정 도메인. 계정에 예약해 둔 이름을 그대로 적는다.
 # 비워 두면 ngrok 이 임시 주소를 주므로 고정 주소의 이점이 사라진다.
 $NgrokDomain = "haste-denture-tree.ngrok-free.dev"
@@ -165,6 +183,8 @@ if ($Tunnel) {
     }
 
     if ($Ngrok) {
+        # 어느 ngrok 을 쓰는지 남긴다. 두 개가 깔려 있어 헷갈렸던 적이 있다.
+        Write-Host "     ngrok $NgrokVersion  ($Ngrok)" -ForegroundColor DarkGray
         # 그래도 파일이 잡혀 있을 수 있으니, 못 지우면 새 이름을 쓴다.
         Remove-Item "$Log\ngrok.log" -ErrorAction SilentlyContinue
         if (Test-Path "$Log\ngrok.log") {
@@ -179,7 +199,11 @@ if ($Tunnel) {
         # 잔여 인자)라서 값을 넣어도 Start-Process 에 제대로 전달되지 않는다.
         # 실제로 그 탓에 ngrok 이 시작도 못 하고 조용히 cloudflared 로 넘어갔었다.
         $ngrokArgs = @("http", "--log=stdout", "--log-format=logfmt")
-        if ($NgrokDomain) { $ngrokArgs += "--url=https://$NgrokDomain" }
+        if ($NgrokDomain) {
+            # 플래그 이름이 버전에 따라 다르다(3.20+ --url / 이전 --domain).
+            $value = if ($NgrokDomainFlag -eq "--url") { "https://$NgrokDomain" } else { $NgrokDomain }
+            $ngrokArgs += "$NgrokDomainFlag=$value"
+        }
         $ngrokArgs += "5173"
         # Start-Process 가 실패해도 스크립트는 계속 돈다($ErrorActionPreference=Continue).
         # 실패를 놓치지 않도록 여기서 잡아 둔다.
