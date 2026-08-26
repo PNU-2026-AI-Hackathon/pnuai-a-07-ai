@@ -10,9 +10,12 @@ import org.testcontainers.containers.PostgreSQLContainer;
 import org.testcontainers.utility.MountableFile;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Base64;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 
 /**
  * 통합 테스트 공통 베이스.
@@ -71,6 +74,14 @@ public abstract class IntegrationTest {
             "SCHEMA_26_diagnosis_flow.sql"
     );
 
+    /**
+     * 테스트 전용 서명 키. 매 실행마다 새로 만들어, 이 값이 어딘가에 굳어져
+     * 운영에서 쓰이는 일이 없게 한다. HMAC-SHA256 은 최소 32바이트를 요구한다.
+     */
+    private static final String TEST_JWT_SECRET = Base64.getEncoder()
+            .encodeToString(UUID.randomUUID().toString().concat(UUID.randomUUID().toString())
+                    .getBytes(StandardCharsets.UTF_8));
+
     static final PostgreSQLContainer<?> POSTGRES =
             new PostgreSQLContainer<>("postgres:18").withDatabaseName("ai_safework_test");
 
@@ -99,6 +110,10 @@ public abstract class IntegrationTest {
         // 검색 결과가 달라져 테스트가 흔들린다(로컬 DB 의존성을 없앤 것과 같은 이유).
         // ML 연동 자체는 폴백 동작으로 검증한다.
         registry.add("app.ml.enabled", () -> false);
+
+        // 서명 키는 운영 설정에 기본값이 없다(공개 저장소라 적어 두면 그게 유출이다).
+        // 테스트는 실제 키를 알 필요가 없으므로 여기서만 쓰는 값을 만들어 넣는다.
+        registry.add("jwt.secret", () -> TEST_JWT_SECRET);
     }
 
     private static void loadSchemaAndFixtures() throws IOException, InterruptedException {

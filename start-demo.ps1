@@ -19,6 +19,10 @@ $Repo        = "C:\dev\pnuai-a-07-ai\backend\.claude\worktrees\safework-ai-hacka
 $MlPython    = "C:\swml\Scripts\python.exe"      # ML 서버 가상환경 (경로가 길면 설치가 깨져서 C:\ 아래에 뒀다)
 $Cloudflared = "C:\Program Files (x86)\cloudflared\cloudflared.exe"
 $DockerApp   = "C:\Program Files\Docker\Docker\Docker Desktop.exe"
+$Ngrok       = "$env:LOCALAPPDATA\ngrok-bin\ngrok.exe"
+# ngrok 무료 등급이 주는 고정 도메인. 계정에 예약해 둔 이름을 그대로 적는다.
+# 비워 두면 ngrok 이 임시 주소를 주므로 고정 주소의 이점이 사라진다.
+$NgrokDomain = "haste-denture-tree.ngrok-free.dev"
 # ──────────────────────────────────────────────────────────────────
 
 $Log = Join-Path $env:TEMP "safework"
@@ -77,6 +81,22 @@ else {
     if (-not $env:GEMINI_API_KEY) { Warn "GEMINI_API_KEY 없음 — AI 답변 없이 조문만 나옵니다" }
     Remove-Item Env:\SPRING_DATASOURCE_URL -ErrorAction SilentlyContinue
 
+    # JWT 서명 키. 저장소에 기본값을 두지 않으므로(공개 저장소라 그게 키 유출이다)
+    # 이 PC 에만 있는 .env 에서 읽고, 없으면 여기서 만들어 넣는다.
+    $envFile = Join-Path $Repo ".env"
+    if (Test-Path $envFile) {
+        Get-Content $envFile | ForEach-Object {
+            if ($_ -match '^\s*([A-Z_]+)\s*=\s*(.*)$' -and $Matches[2]) {
+                Set-Item -Path "Env:\$($Matches[1])" -Value $Matches[2].Trim()
+            }
+        }
+    }
+    if (-not $env:JWT_SECRET) {
+        $env:JWT_SECRET = [Convert]::ToBase64String((1..48 | ForEach-Object { Get-Random -Maximum 256 }))
+        Add-Content -Path $envFile -Value "JWT_SECRET=$($env:JWT_SECRET)" -Encoding utf8
+        Ok "JWT 서명 키를 새로 만들어 .env 에 넣었습니다 (git 에 올라가지 않음)"
+    }
+
     Start-Process -FilePath (Join-Path $Repo "backend\gradlew.bat") -ArgumentList "bootRun" `
         -WorkingDirectory (Join-Path $Repo "backend") -WindowStyle Hidden `
         -RedirectStandardOutput "$Log\backend.log" -RedirectStandardError "$Log\backend.err"
@@ -106,21 +126,52 @@ else {
 }
 
 # 5. 공개 주소 (선택)
+#
+# ngrok 을 먼저 쓴다. 무료 등급이 주는 고정 도메인은 껐다 켜도 그대로라,
+# 팀원에게 주소를 한 번만 알려주면 된다. cloudflared 임시 터널은 켤 때마다
+# 새 주소를 받아서 매번 다시 공지해야 했다.
+# ngrok 이 안 되면 cloudflared 로 넘어간다 — 주소는 바뀌지만 없는 것보다 낫다.
 $publicUrl = $null
 if ($Tunnel) {
-    Step 5 "공개 주소 (cloudflare 터널)"
-    Remove-Item "$Log\tunnel.log" -ErrorAction SilentlyContinue
-    Start-Process -FilePath $Cloudflared -ArgumentList "tunnel","--url","http://localhost:5173","--no-autoupdate" `
-        -WindowStyle Hidden -RedirectStandardOutput "$Log\tunnel.out" -RedirectStandardError "$Log\tunnel.log"
-    $sw = [Diagnostics.Stopwatch]::StartNew()
-    while ($sw.Elapsed.TotalSeconds -lt 90 -and -not $publicUrl) {
-        Start-Sleep -Seconds 2
-        if (Test-Path "$Log\tunnel.log") {
-            $m = Select-String -Path "$Log\tunnel.log" -Pattern "https://[a-z0-9-]+\.trycloudflare\.com" -ErrorAction SilentlyContinue
-            if ($m) { $publicUrl = $m.Matches[0].Value }
+    Step 5 "공개 주소"
+
+    if (Test-Path $Ngrok) {
+        Remove-Item "$Log\ngrok.log" -ErrorAction SilentlyContinue
+        $args = @("http","--log=stdout","--log-format=logfmt")
+        if ($NgrokDomain) { $args += "--url=https://$NgrokDomain" }
+        $args += "5173"
+        Start-Process -FilePath $Ngrok -ArgumentList $args -WindowStyle Hidden `
+            -RedirectStandardOutput "$Log\ngrok.log" -RedirectStandardError "$Log\ngrok.err"
+
+        $sw = [Diagnostics.Stopwatch]::StartNew()
+        while ($sw.Elapsed.TotalSeconds -lt 45 -and -not $publicUrl) {
+            Start-Sleep -Seconds 2
+            # 로컬 관리 API 가 현재 터널 주소를 알려준다. 로그를 긁는 것보다 정확하다.
+            try {
+                $t = (Invoke-RestMethod "http://127.0.0.1:4040/api/tunnels" -TimeoutSec 2).tunnels |
+                     Where-Object { $_.proto -eq "https" } | Select-Object -First 1
+                if ($t) { $publicUrl = $t.public_url }
+            } catch { }
         }
+        if ($publicUrl) { Ok "$publicUrl  (고정 주소 — 다시 켜도 그대로)" }
+        else { Warn "ngrok 실패. 로그: $Log\ngrok.log" }
     }
-    if ($publicUrl) { Ok $publicUrl } else { Warn "터널 주소를 못 받았습니다. 로그: $Log\tunnel.log" }
+
+    if (-not $publicUrl -and (Test-Path $Cloudflared)) {
+        Warn "cloudflared 로 대신합니다 (주소가 매번 바뀝니다)"
+        Remove-Item "$Log\tunnel.log" -ErrorAction SilentlyContinue
+        Start-Process -FilePath $Cloudflared -ArgumentList "tunnel","--url","http://localhost:5173","--no-autoupdate" `
+            -WindowStyle Hidden -RedirectStandardOutput "$Log\tunnel.out" -RedirectStandardError "$Log\tunnel.log"
+        $sw = [Diagnostics.Stopwatch]::StartNew()
+        while ($sw.Elapsed.TotalSeconds -lt 90 -and -not $publicUrl) {
+            Start-Sleep -Seconds 2
+            if (Test-Path "$Log\tunnel.log") {
+                $m = Select-String -Path "$Log\tunnel.log" -Pattern "https://[a-z0-9-]+\.trycloudflare\.com" -ErrorAction SilentlyContinue
+                if ($m) { $publicUrl = $m.Matches[0].Value }
+            }
+        }
+        if ($publicUrl) { Ok $publicUrl } else { Warn "터널 주소를 못 받았습니다. 로그: $Log\tunnel.log" }
+    }
 }
 
 # 6. 예열 — 첫 요청이 느리다. 무대에서 기다리지 않게 미리 한 번 돌린다.
