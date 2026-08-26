@@ -26,11 +26,13 @@ $DockerApp   = "C:\Program Files\Docker\Docker\Docker Desktop.exe"
 # 두거나 PATH 를 그냥 쓰면 어느 쪽이 걸릴지 운에 맡기게 된다.
 # 실제로 옛 버전이 걸려 "unknown flag: --url" 로 실패하고 cloudflared 로
 # 넘어갔다. 그래서 후보를 모두 모아 버전을 물어보고 가장 새 것을 쓴다.
+# 첫 줄이 기준 경로다. 환경변수를 쓰지 않는 절대 경로로 둔 이유가 있다.
+# $env:LOCALAPPDATA 로 적었더니 쉘에 따라 못 찾는 일이 반복됐고, 그때마다
+# PATH 의 옛 버전이 걸려 실패했다.
 $NgrokCandidates = @(
+    "C:\dev\ngrok\ngrok.exe",
     "$env:LOCALAPPDATA\ngrok-bin\ngrok.exe",
-    "$env:LOCALAPPDATA\ngrok\ngrok.exe",
     "$env:USERPROFILE\ngrok.exe",
-    "C:\ngrok\ngrok.exe",
     (Get-Command ngrok.exe -ErrorAction SilentlyContinue).Source
 ) | Where-Object { $_ -and (Test-Path $_) } | Select-Object -Unique
 
@@ -46,8 +48,14 @@ foreach ($candidate in $NgrokCandidates) {
         }
     }
 }
-# --url 은 3.20 부터다. 그보다 낮으면 옛 이름인 --domain 을 쓴다.
-$NgrokDomainFlag = if ($NgrokVersion -and $NgrokVersion -ge [version]"3.20.0") { "--url" } else { "--domain" }
+# ngrok 계정이 요구하는 최소 에이전트 버전이 3.20 이다. 그보다 낮으면 접속
+# 자체가 거부되므로(ERR_NGROK_121) 아예 쓰지 않는다. 예전에는 PATH 에 있던
+# 3.3.1 이 걸려서 매번 실패하고 cloudflared 로 넘어갔다.
+$NgrokTooOld = $null
+if ($Ngrok -and $NgrokVersion -lt [version]"3.20.0") {
+    $NgrokTooOld = "$NgrokVersion ($Ngrok)"
+    $Ngrok = $null
+}
 # ngrok 무료 등급이 주는 고정 도메인. 계정에 예약해 둔 이름을 그대로 적는다.
 # 비워 두면 ngrok 이 임시 주소를 주므로 고정 주소의 이점이 사라진다.
 $NgrokDomain = "haste-denture-tree.ngrok-free.dev"
@@ -178,8 +186,13 @@ if ($Tunnel) {
 
     if (-not $Ngrok) {
         # 여기서 아무 말 없이 넘어가면, 왜 고정 주소가 안 나오는지 알 수가 없다.
-        Warn "ngrok.exe 를 찾지 못했습니다. 찾아본 곳:"
-        $NgrokCandidates | ForEach-Object { Write-Host "        $_" -ForegroundColor DarkGray }
+        if ($NgrokTooOld) {
+            Warn "ngrok 이 너무 오래됐습니다: $NgrokTooOld (3.20 이상 필요)"
+            Write-Host "        새 ngrok 을 C:\dev\ngrok\ngrok.exe 에 두면 됩니다" -ForegroundColor DarkGray
+        } else {
+            Warn "ngrok.exe 를 찾지 못했습니다. 찾아본 곳:"
+            $NgrokCandidates | ForEach-Object { Write-Host "        $_" -ForegroundColor DarkGray }
+        }
     }
 
     if ($Ngrok) {
@@ -199,11 +212,8 @@ if ($Tunnel) {
         # 잔여 인자)라서 값을 넣어도 Start-Process 에 제대로 전달되지 않는다.
         # 실제로 그 탓에 ngrok 이 시작도 못 하고 조용히 cloudflared 로 넘어갔었다.
         $ngrokArgs = @("http", "--log=stdout", "--log-format=logfmt")
-        if ($NgrokDomain) {
-            # 플래그 이름이 버전에 따라 다르다(3.20+ --url / 이전 --domain).
-            $value = if ($NgrokDomainFlag -eq "--url") { "https://$NgrokDomain" } else { $NgrokDomain }
-            $ngrokArgs += "$NgrokDomainFlag=$value"
-        }
+        # 여기까지 왔으면 3.20 이상이 확정이라 --url 을 그대로 쓴다.
+        if ($NgrokDomain) { $ngrokArgs += "--url=https://$NgrokDomain" }
         $ngrokArgs += "5173"
         # Start-Process 가 실패해도 스크립트는 계속 돈다($ErrorActionPreference=Continue).
         # 실패를 놓치지 않도록 여기서 잡아 둔다.
